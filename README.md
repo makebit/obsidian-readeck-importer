@@ -1,6 +1,6 @@
 # Obsidian Readeck Importer Plugin
 
-The Obsidian Readeck Importer is a plugin for Obsidian that enables users to seamlessly import their saved bookmarks from Readeck into their Obsidian vault. This plugin is perfect for those who want to organize and annotate their Readeck bookmarks within Obsidian's powerful note-taking environment.
+The Obsidian Readeck Importer is a plugin for Obsidian that enables users to seamlessly import their saved bookmarks from [Readeck](https://readeck.org/) into their Obsidian vault. This plugin is perfect for those who want to organize and annotate their Readeck bookmarks within Obsidian's powerful note-taking environment.
 
 ## Features
 - Import bookmarks directly from Readeck.
