@@ -19,7 +19,7 @@ export default class RDPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'get-readeck-data',
-			name: 'Get Readeck Data',
+			name: 'Get readeck data',
 			callback: () => this.getReadeckData(),
 		});
 
