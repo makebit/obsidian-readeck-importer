@@ -14,7 +14,6 @@ export class RDSettingTab extends PluginSettingTab {
 		const { containerEl } = this;
 
 		containerEl.empty();
-		containerEl.createEl('h2', { text: 'Readeck Integration Settings' });
 
 		new Setting(containerEl)
 			.setName('API URL')
