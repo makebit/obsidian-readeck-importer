@@ -10,7 +10,7 @@ export interface ReadeckPluginSettings {
 }
 
 export const DEFAULT_SETTINGS: ReadeckPluginSettings = {
-	apiUrl: "https://readeck-url",
+	apiUrl: "",
 	apiToken: "",
 	folder: "Readeck",
 	createNoteIfNoAnnotations: true,
