@@ -60,4 +60,29 @@ export class ReadeckApi {
             return null;
         }
     }
+
+    async getToken(username: string, password: string) {
+        try {
+            const tokenResponse = await requestUrl({
+                url: `${this.settings.apiUrl}/api/auth`,
+                method: 'POST',
+                headers: {
+                    Accept: "application/json",
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    username: username,
+                    password: password,
+                    application: "obsidian-readeck-importer",
+                    roles: ["scoped_bookmarks_r"],
+                }),
+            });
+            console.log(tokenResponse.json);
+            const token: string = await tokenResponse.json.token;
+            return token;
+        } catch (error) {
+            console.log("Readeck login: error", error);
+            return null;
+        }
+	}
 }

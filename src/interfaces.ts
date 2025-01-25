@@ -1,6 +1,7 @@
 export interface ReadeckPluginSettings {
 	apiUrl: string;
 	apiToken: string;
+	username: string,
 	folder: string;
 	createNoteIfNoAnnotations: boolean;
 	setProperties: boolean;
@@ -12,6 +13,7 @@ export interface ReadeckPluginSettings {
 export const DEFAULT_SETTINGS: ReadeckPluginSettings = {
 	apiUrl: "",
 	apiToken: "",
+	username: "",
 	folder: "Readeck",
 	createNoteIfNoAnnotations: true,
 	overwriteIfExists: false,
