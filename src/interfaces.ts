@@ -3,11 +3,8 @@ export interface ReadeckPluginSettings {
 	apiToken: string;
 	username: string,
 	folder: string;
-	createNoteIfNoAnnotations: boolean;
-	setProperties: boolean;
-	getArticle: boolean;
-	getAnnotations: boolean;
-	overwriteIfExists: boolean;
+	overwrite: boolean;
+	mode: string;
 }
 
 export const DEFAULT_SETTINGS: ReadeckPluginSettings = {
@@ -15,9 +12,19 @@ export const DEFAULT_SETTINGS: ReadeckPluginSettings = {
 	apiToken: "",
 	username: "",
 	folder: "Readeck",
-	createNoteIfNoAnnotations: true,
-	overwriteIfExists: false,
-	setProperties: true,
-	getArticle: true,
-	getAnnotations: true,
+	overwrite: false,
+	mode: "textImagesNotes",
+}
+
+export interface PartData {
+  bookmarkId: string,
+  contentDisposition: {
+	base?: string,
+	filename?: string,
+  },
+  contentType: {
+	base?: string,
+	charset?: string,
+  },
+  body?: any;
 }

@@ -92,49 +92,32 @@ export class RDSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName('Create if no annotations')
-			.setDesc('Create the note even if the article has no annotations')
-			.addToggle(toggle => toggle.setValue(this.plugin.settings.createNoteIfNoAnnotations)
-				.onChange((value) => {
-					this.plugin.settings.createNoteIfNoAnnotations = value;
-					this.plugin.saveData(this.plugin.settings);
-				}));
-
-		new Setting(containerEl)
 			.setName('Overwrite if it already exists')
 			.setDesc('Overwrite the note if the bookmark already exists. Warning: the note will be overwritten')
-			.addToggle(toggle => toggle.setValue(this.plugin.settings.overwriteIfExists)
-				.onChange((value) => {
-					this.plugin.settings.overwriteIfExists = value;
-					this.plugin.saveData(this.plugin.settings);
+			.addToggle(toggle => toggle.setValue(this.plugin.settings.overwrite)
+				.onChange(async (value) => {
+					this.plugin.settings.overwrite = value;
+					await this.plugin.saveData(this.plugin.settings);
 				}));
 
 		new Setting(containerEl)
-			.setName('Set properties')
-			.setDesc('Set the properties of the note')
-			.addToggle(toggle => toggle.setValue(this.plugin.settings.setProperties)
-				.onChange((value) => {
-					this.plugin.settings.setProperties = value;
-					this.plugin.saveData(this.plugin.settings);
-				}));
-
-		new Setting(containerEl)
-			.setName('Get article')
-			.setDesc('Create the note with the text of the article')
-			.addToggle(toggle => toggle.setValue(this.plugin.settings.getArticle)
-				.onChange((value) => {
-					this.plugin.settings.getArticle = value;
-					this.plugin.saveData(this.plugin.settings);
-				}));
-
-		new Setting(containerEl)
-			.setName('Get annotations')
-			.setDesc('Create the note with the annotations of the article')
-			.addToggle(toggle => toggle.setValue(this.plugin.settings.getAnnotations)
-				.onChange((value) => {
-					this.plugin.settings.getAnnotations = value;
-					this.plugin.saveData(this.plugin.settings);
-				}));
+			.setName('Set mode')
+			.setDesc('Set how the note is created')
+			.addDropdown((dropdown) => {
+				dropdown
+				.addOptions({
+					textImagesAnnotations: 'Text + Images + Annotations',
+					textImages: 'Text + Images',
+					textAnnotations: 'Text + Annotations',
+					text: 'Text',
+					annotations: 'Annotations',
+				})
+				.setValue(this.plugin.settings.mode)
+				.onChange(async (value) => {
+					this.plugin.settings.mode = value;
+					await this.plugin.saveData(this.plugin.settings);
+				})
+			});
 	}
 }
 

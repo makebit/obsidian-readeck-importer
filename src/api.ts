@@ -1,7 +1,6 @@
 import { requestUrl } from "obsidian";
 import { ReadeckPluginSettings } from "./interfaces";
 
-
 export class ReadeckApi {
     settings: ReadeckPluginSettings;
 
@@ -41,22 +40,39 @@ export class ReadeckApi {
             console.log("Readeck Importer: error", error);
             return null;
         }
-        
+
     }
 
-    async getBookmarkArticle(bookmarkId: string) {
+    async getBookmarkMD(bookmarkId: string) {
         try {
             const articleResponse = await requestUrl({
-                url: `${this.settings.apiUrl}/api/bookmarks/${bookmarkId}/article`,
+                url: `${this.settings.apiUrl}/api/bookmarks/${bookmarkId}/article.md?v=${Date.now()}`,
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${this.settings.apiToken}`
                 }
             });
-            const article = await articleResponse.text;
-            return article;
+            const text = await articleResponse.text;
+            return text;
         } catch (error) {
             console.log("Readeck Importer: error", error);
+            return null;
+        }
+    }
+
+    async getBookmarkMultipart(bookmarkId: string) {
+        try {
+            const articleResponse = await requestUrl({
+                url: `${this.settings.apiUrl}/api/bookmarks/${bookmarkId}/article.md?v=${Date.now()}`,
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${this.settings.apiToken}`,
+                    'Accept': 'multipart/alternative',
+                }
+            });
+            return articleResponse;
+        } catch (error) {
+            console.log("Readeck Importer: error", error, "bookmarkId:", bookmarkId);
             return null;
         }
     }
@@ -77,12 +93,11 @@ export class ReadeckApi {
                     roles: ["scoped_bookmarks_r"],
                 }),
             });
-            console.log(tokenResponse.json);
             const token: string = await tokenResponse.json.token;
             return token;
         } catch (error) {
             console.log("Readeck login: error", error);
             return null;
         }
-	}
+    }
 }

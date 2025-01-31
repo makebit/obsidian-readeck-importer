@@ -5,7 +5,7 @@ The Readeck Importer is a plugin for Obsidian that enables users to seamlessly i
 ## Features
 - Import bookmarks directly from Readeck.
 - Save imported bookmarks to a specified folder in your Obsidian vault.
-- Optionally fetch full articles and annotations from Readeck.
+- Optionally fetch full bookmarks, images and annotations from Readeck.
 - Flexible import settings, including overwriting existing files.
 - Automatically set properties and metadata for imported bookmarks.
 
@@ -18,20 +18,21 @@ The Readeck Importer is a plugin for Obsidian that enables users to seamlessly i
 ## Plugin Settings
 
 The plugin provides the following configurable options:
-
-- API URL: URL of the Readeck instance (without trailing "/").
-- API Token: The Readeck API token for authentication.
-- Folder: The folder where to save the notes.
-- Create if no annotations: Create the note even if the article has no annotations.
-- Overwrite if it already exists: Overwrite the note if the bookmark already exists. Warning: the note will be overwritten.
-- Set properties: Set the properties of the note.
-- Get article: Create the note with the text of the article.
-- Get annotations: Create the note with the annotations of the article.
+- **API URL**: The base URL of the Readeck instance (without a trailing `/`).  
+- **Login**: Credentials for accessing the Readeck instance.  
+- **Folder**: The folder for saving notes.  
+- **Overwrite**: If enabled, replaces an existing note with the new one. Warning: notes will be overwritten.
+- **Mode**: Defines the content to be saved:  
+  - **Text**: Save the text.  
+  - **Text + Images**: Save text along with images.  
+  - **Text + Annotations**: Save text and annotations.  
+  - **Text + Images + Annotations**: Save text, images, and annotations.  
+  - **Annotations**: Save the annotations.
 
 ## How to Use
 
 1. Configure the plugin settings in **Settings > Readeck Importer**.
-2. Use the "Import from Readeck" command from the command palette.
+2. Use the "Readeck Importer: Get Readeck Data" command from the command palette.
 3. The plugin will fetch your bookmarks and save them in the specified folder.
 
 ## Development
