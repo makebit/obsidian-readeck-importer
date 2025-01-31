@@ -141,6 +141,9 @@ export class RDSettingTab extends PluginSettingTab {
 class LoginModal extends Modal {
 	constructor(app: App, onSubmit: (username: string, password: string) => void) {
 		super(app);
+		
+		this.contentEl.addClass("mod-form");
+		this.modalEl.addClass("w-auto");
 		this.setTitle('Login');
 
 		let username = '';
@@ -148,6 +151,9 @@ class LoginModal extends Modal {
 
 		new Setting(this.contentEl)
 			.setName('Username')
+			.setClass('form-field')
+			.setClass('b-0')
+			.setClass('align-start')
 			.addText((text) =>
 				text.onChange((value) => {
 					username = value;
@@ -155,12 +161,16 @@ class LoginModal extends Modal {
 
 		new Setting(this.contentEl)
 			.setName('Password')
+			.setClass('form-field')
+			.setClass('b-0')
+			.setClass('align-start')
 			.addText((text) =>
 				text.onChange((value) => {
 					password = value;
 				}));
 
 		new Setting(this.contentEl)
+			.setClass('b-0')
 			.addButton((btn) => btn
 				.setButtonText('Submit')
 				.setCta()

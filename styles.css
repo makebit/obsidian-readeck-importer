@@ -6,3 +6,15 @@ available in the app when your plugin is enabled.
 If your plugin does not need CSS, delete this file.
 
 */
+
+.align-start {
+    align-items: start;
+}
+
+.b-0 {
+    border: 0;
+}
+
+.w-auto {
+    width: auto;
+}
