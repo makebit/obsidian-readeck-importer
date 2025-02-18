@@ -147,10 +147,12 @@ class LoginModal extends Modal {
 			.setClass('form-field')
 			.setClass('b-0')
 			.setClass('align-start')
-			.addText((text) =>
+			.addText((text) => {
+				text.inputEl.type = 'password';
 				text.onChange((value) => {
 					password = value;
-				}));
+				})
+			});
 
 		new Setting(this.contentEl)
 			.setClass('b-0')
