@@ -13,5 +13,5 @@ export const DEFAULT_SETTINGS: ReadeckPluginSettings = {
 	username: "",
 	folder: "Readeck",
 	overwrite: false,
-	mode: "textImagesNotes",
+	mode: "text",
 }
