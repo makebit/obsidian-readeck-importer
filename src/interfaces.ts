@@ -15,16 +15,3 @@ export const DEFAULT_SETTINGS: ReadeckPluginSettings = {
 	overwrite: false,
 	mode: "textImagesNotes",
 }
-
-export interface PartData {
-  bookmarkId: string,
-  contentDisposition: {
-	base?: string,
-	filename?: string,
-  },
-  contentType: {
-	base?: string,
-	charset?: string,
-  },
-  body?: any;
-}

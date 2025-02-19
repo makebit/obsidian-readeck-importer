@@ -1,6 +1,4 @@
-import Dicer from 'dicer';
-import { Writable } from 'stream';
-import { PartData } from "./interfaces";
+import { MultipartPart, parseMultipart } from '@mjackson/multipart-parser';
 
 export class Utils {
     static sanitizeFileName(fileName: string): string {
@@ -15,51 +13,28 @@ export class Utils {
     }
 
     static async parseMultipart(articleData: any): Promise<any> {
-        return new Promise((resolve, reject) => {
-            const contentType = articleData.headers['content-type'];
+        return new Promise(async (resolve, reject) => {
+            try {
+                // Get the content type and boundary from headers
+                const contentType = articleData.headers['content-type'];
+                const RE_BOUNDARY = /^multipart\/.+?(?:; boundary=(?:(?:"(.+)")|(?:([^\s]+))))$/i;
+                const match = RE_BOUNDARY.exec(contentType);
+                if (!match) {
+                    throw new Error("Invalid multipart content-type");
+                }
+                const boundary = match[1] || match[2];
+                let multipartMessage = Buffer.from(articleData.arrayBuffer);
+                const parts: MultipartPart[] = [];
 
-            const RE_BOUNDARY = /^multipart\/.+?(?:; boundary=(?:(?:"(.+)")|(?:([^\s]+))))$/i;
-            const m: any = RE_BOUNDARY.exec(contentType);
-            const dicer = new Dicer({ boundary: m[1] || m[2] });
-            const parts: PartData[] = [];
-
-            dicer.on('part', (part) => {
-                const partData: PartData = {
-                    bookmarkId: '',
-                    contentDisposition: {},
-                    contentType: {},
-                };
-
-                part.on('header', (headers: any) => {
-                    partData.bookmarkId = headers['bookmark-id'];
-                    partData.contentDisposition.base = headers['content-disposition']?.[0].split(";")[0];
-                    partData.contentDisposition.filename = headers['content-disposition']?.toString().match(/filename="(.+?)"/)?.[1];
-                    partData.contentType.base = headers['content-type']?.[0].split(";")[0];
-                    partData.contentType.charset = headers['content-type']?.toString().match(/charset=(.[^;]*)/)?.[1];
-                });
-
-                part.on('data', (data) => {
-                    partData.body = data;
-                });
-                part.on('end', () => {
-                    parts.push(partData);
-                });
-            });
-            dicer.on('finish', () => {
+                await parseMultipart(multipartMessage, { boundary }, async (part) => {
+                    parts.push(part);
+                  });
+                
                 resolve(parts);
-            });
-            dicer.on('error', (err) => {
-                console.error("Dicer error:", err);
-                reject(err);
-            });
-
-            const writable = new Writable({
-                write(chunk: Buffer, encoding: BufferEncoding, callback: (error?: Error | null) => void) {
-                    dicer.write(chunk, encoding, callback);
-                },
-            });
-
-            writable.end(Buffer.from(articleData.arrayBuffer));
+            } catch (error) {
+                console.error("Error parsing multipart data:", error);
+                reject(error);
+            }
         });
     }
 

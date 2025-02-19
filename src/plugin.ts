@@ -3,6 +3,7 @@ import { DEFAULT_SETTINGS, ReadeckPluginSettings } from "./interfaces";
 import { RDSettingTab } from "./settings";
 import { ReadeckApi } from "./api"
 import { Utils } from "./utils"
+import { MultipartPart } from "@mjackson/multipart-parser";
 
 
 export default class RDPlugin extends Plugin {
@@ -106,26 +107,25 @@ export default class RDPlugin extends Plugin {
 	}
 
 	async addBookmarkMP(bookmark: any, bookmarkData: any, annotationsData: any) {
-		const partsData = await Utils.parseMultipart(bookmarkData);
+		const partsData: MultipartPart[] = await Utils.parseMultipart(bookmarkData);
 
 		const texts = [];
 		const images = [];
 		for (const partData of partsData) {
-			const contentType = partData.contentType;
-			if (contentType?.base == 'text/markdown') {
-				const charset = partData.contentType.charset || 'utf-8';
-				const markdownContent = new TextDecoder(charset).decode(partData.body);
+			const mediaType = partData.mediaType || '';
+			if (mediaType == 'text/markdown') {
+				const markdownContent = await partData.text();
 				texts.push({
-					filename: partData.contentDisposition.filename,
+					filename: partData.filename,
 					content: markdownContent,
 				});
-			} else if (contentType?.base.includes('image')) {
+			} else if (mediaType.includes('image')) {
 				images.push({
-					filename: partData.contentDisposition.filename,
+					filename: partData.filename,
 					content: partData.body,
 				});
 			} else {
-				console.warn(`Unknown content type: ${contentType}`);
+				console.warn(`Unknown content type: ${partData.mediaType}`);
 			}
 		}
 
@@ -167,7 +167,7 @@ export default class RDPlugin extends Plugin {
 		const file = this.app.vault.getAbstractFileByPath(filePath);
 
 		if (file && file instanceof TFile) {
-			if(this.settings.overwrite) {
+			if (this.settings.overwrite) {
 				// the file exists and overwrite is true
 				await this.app.vault.modify(file, content);
 				if (showNotice) { new Notice(`Overwriting note for ${bookmark.title}`); }
