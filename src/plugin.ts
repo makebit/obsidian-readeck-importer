@@ -78,15 +78,16 @@ export default class RDPlugin extends Plugin {
 					this.addBookmarkMP(bookmark, bookmarkData, annotationsData);
 				} else if (this.settings.mode == "annotations") {
 					const annotationsData = await this.getBookmarkAnnotations(bookmark.id);
-					this.addBookmarkAnnotations(bookmark, annotationsData);
+					if (annotationsData.length > 0) {
+						const bookmarkData = await this.getBookmarkMD(bookmark.id);
+						this.addBookmarkAnnotations(bookmark, annotationsData, bookmarkData);
+					}
 				}
 			} catch (error) {
-				console.log("Readeck Importer: error", error);
+				console.log(`Error getting data for ${bookmark.title}`, error);
 				new Notice(`Error getting data for ${bookmark.title}`);
 			}
-
 		}
-
 	}
 
 	async getBookmarkAnnotations(bookmarkId: string) {
@@ -139,6 +140,7 @@ export default class RDPlugin extends Plugin {
 
 		for (const text of texts) {
 			const filePath = `${this.bookmarkFolderPath}/${Utils.sanitizeFileName(bookmark.title)}.md`;
+
 			let noteContent = Utils.updateImagePaths(text.content, './', './imgs/');
 			if (annotationsData) {
 				const annotations = this.buildAnnotations(bookmark, annotationsData);
@@ -153,26 +155,34 @@ export default class RDPlugin extends Plugin {
 		}
 	}
 
-	async addBookmarkAnnotations(bookmark: Bookmark, annotationsData: Annotation[]) {
+	async addBookmarkAnnotations(bookmark: Bookmark, annotationsData: Annotation[], bookmarkData: string) {
 		const filePath = `${this.bookmarkFolderPath}/${Utils.sanitizeFileName(bookmark.title)}.md`;
+		const properties = this.getMDProperties(bookmarkData) + "\n";
 		const annotations = this.buildAnnotations(bookmark, annotationsData);
-		await this.createFile(bookmark, filePath, annotations);
+		await this.createFile(bookmark, filePath, properties + annotations);
 	}
 
+	getMDProperties(bookmarkData: string) {
+		const properties = bookmarkData.match(/(---\n)([\s\S]*?)(\n---)/);
+		if (properties) {
+			return properties[0];
+		}
+		return null
+	}
 
-	buildAnnotations(bookmark: any, annotationsData: any) {
+	buildAnnotations(bookmark: Bookmark, annotationsData: Annotation[]) {
 		let annotationsContent = "# Annotations\n";
 		if (annotationsData) {
 			annotationsContent = annotationsContent + annotationsData.map(
-				(ann: any) =>
-					`> ${ann.text}` +
+				(ann: Annotation) =>
+					`> ${ann.text.split('\n').join('\n> ')}` +
 					` - [#](${this.settings.apiUrl}/bookmarks/${bookmark.id}#annotation-${ann.id})`
 			).join('\n\n');
 		}
 		return annotationsContent
 	}
 
-	async createFile(bookmark: any, filePath: string, content: any, showNotice: boolean = true) {
+	async createFile(bookmark: Bookmark, filePath: string, content: any, showNotice: boolean = true) {
 		const file = this.app.vault.getAbstractFileByPath(filePath);
 
 		if (file && file instanceof TFile) {
