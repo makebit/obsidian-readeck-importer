@@ -44,18 +44,17 @@ export class RDSettingTab extends PluginSettingTab {
 						new LoginModal(this.app, (username, password) => {
 							this.plugin.api.getToken(username, password)
 								.then(async (token) => {
-									if (token) {
-										// update values
-										this.plugin.settings.apiToken = token;
-										this.plugin.settings.username = username;
-										await this.plugin.saveSettings();
-										// update ui
-										loginButton.setButtonText(`Logged in as ${this.plugin.settings.username}`);
-										loginButton.setDisabled(true);
-										logoutButton.setDisabled(false);
-									} else {
-										new Notice('Login error, check your credentials');
-									}
+									// update values
+									this.plugin.settings.apiToken = token;
+									this.plugin.settings.username = username;
+									await this.plugin.saveSettings();
+									// update ui
+									loginButton.setButtonText(`Logged in as ${this.plugin.settings.username}`);
+									loginButton.setDisabled(true);
+									logoutButton.setDisabled(false);
+								}).catch((error) => {
+									console.log("Login error", error);
+									new Notice('Login error, check your credentials');
 								});
 						}).open();
 
@@ -105,18 +104,18 @@ export class RDSettingTab extends PluginSettingTab {
 			.setDesc('Set how the note is created')
 			.addDropdown((dropdown) => {
 				dropdown
-				.addOptions({
-					textImagesAnnotations: 'Text + Images + Annotations',
-					textImages: 'Text + Images',
-					textAnnotations: 'Text + Annotations',
-					text: 'Text',
-					annotations: 'Annotations',
-				})
-				.setValue(this.plugin.settings.mode)
-				.onChange(async (value) => {
-					this.plugin.settings.mode = value;
-					await this.plugin.saveData(this.plugin.settings);
-				})
+					.addOptions({
+						textImagesAnnotations: 'Text + Images + Annotations',
+						textImages: 'Text + Images',
+						textAnnotations: 'Text + Annotations',
+						text: 'Text',
+						annotations: 'Annotations',
+					})
+					.setValue(this.plugin.settings.mode)
+					.onChange(async (value) => {
+						this.plugin.settings.mode = value;
+						await this.plugin.saveData(this.plugin.settings);
+					})
 			});
 	}
 }
@@ -124,7 +123,7 @@ export class RDSettingTab extends PluginSettingTab {
 class LoginModal extends Modal {
 	constructor(app: App, onSubmit: (username: string, password: string) => void) {
 		super(app);
-		
+
 		this.contentEl.addClass("mod-form");
 		this.modalEl.addClass("w-auto");
 		this.setTitle('Login');
