@@ -1,5 +1,5 @@
 import { Notice, Plugin, TFile } from "obsidian";
-import { Annotation, Bookmark, DEFAULT_SETTINGS, ReadeckPluginSettings } from "./interfaces";
+import { DEFAULT_SETTINGS, ReadeckPluginSettings } from "./interfaces";
 import { RDSettingTab } from "./settings";
 import { ReadeckApi } from "./api"
 import { Utils } from "./utils"
@@ -26,19 +26,12 @@ export default class RDPlugin extends Plugin {
 		});
 
 		this.api = new ReadeckApi(this.settings);
-
-		this.bookmarkFolderPath = this.settings.folder;
-		this.bookmarkImagesFolderPath = `${this.settings.folder}/imgs`
 	}
 
 	async getReadeckData() {
+		const bookmarks = await this.api.getBookmarks();
 
-		let bookmarks: Bookmark[];
-
-		try {
-			bookmarks = await this.api.getBookmarks();
-		} catch (error) {
-			console.log("Readeck Importer: error", error);
+		if (!bookmarks) {
 			new Notice(`Error getting bookmarks`);
 			return;
 		}
@@ -48,49 +41,45 @@ export default class RDPlugin extends Plugin {
 			return;
 		}
 
-		const bookmarksFolder = this.app.vault.getAbstractFileByPath(this.bookmarkFolderPath);
+		const bookmarksFolder = this.app.vault.getAbstractFileByPath(this.settings.folder);
 		if (!bookmarksFolder) {
 			await this.app.vault.createFolder(this.settings.folder);
 		}
 
 		if (["textImages", "textImagesAnnotations"].includes(this.settings.mode)) {
-			const bookmarksImgsFolder = this.app.vault.getAbstractFileByPath(this.bookmarkImagesFolderPath);
+			const bookmarksImgsFolder = this.app.vault.getAbstractFileByPath(`${this.settings.folder}/imgs`);
 			if (!bookmarksImgsFolder) {
 				await this.app.vault.createFolder(`${this.settings.folder}/imgs`);
 			}
 		}
 
 		for (const bookmark of bookmarks) {
-			try {
-				if (this.settings.mode == "text") {
-					const bookmarkData = await this.getBookmarkMD(bookmark.id);
-					this.addBookmarkMD(bookmark, bookmarkData, []);
-				} else if (this.settings.mode == "textImages") {
-					const bookmarkData = await this.getBookmarkMP(bookmark.id);
-					this.addBookmarkMP(bookmark, bookmarkData, []);
-				} else if (this.settings.mode == "textAnnotations") {
-					const bookmarkData = await this.getBookmarkMD(bookmark.id);
-					const annotationsData = await this.getBookmarkAnnotations(bookmark.id);
-					this.addBookmarkMD(bookmark, bookmarkData, annotationsData);
-				} else if (this.settings.mode == "textImagesAnnotations") {
-					const bookmarkData = await this.getBookmarkMP(bookmark.id);
-					const annotationsData = await this.getBookmarkAnnotations(bookmark.id);
-					this.addBookmarkMP(bookmark, bookmarkData, annotationsData);
-				} else if (this.settings.mode == "annotations") {
-					const annotationsData = await this.getBookmarkAnnotations(bookmark.id);
-					this.addBookmarkAnnotations(bookmark, annotationsData);
-				}
-			} catch (error) {
-				console.log("Readeck Importer: error", error);
-				new Notice(`Error getting data for ${bookmark.title}`);
+			if (this.settings.mode == "text") {
+				const bookmarkData = await this.getBookmarkMD(bookmark.id);
+				this.addBookmarkMD(bookmark, bookmarkData, null);
+			} else if (this.settings.mode == "textImages") {
+				const bookmarkData = await this.getBookmarkMP(bookmark.id);
+				this.addBookmarkMP(bookmark, bookmarkData, null);
+			} else if (this.settings.mode == "textAnnotations") {
+				const bookmarkData = await this.getBookmarkMD(bookmark.id);
+				const annotationsData = await this.getBookmarkAnnotations(bookmark.id);
+				this.addBookmarkMD(bookmark, bookmarkData, annotationsData);
+			} else if (this.settings.mode == "textImagesAnnotations") {
+				const bookmarkData = await this.getBookmarkMP(bookmark.id);
+				const annotationsData = await this.getBookmarkAnnotations(bookmark.id);
+				this.addBookmarkMP(bookmark, bookmarkData, annotationsData);
+			} else if (this.settings.mode == "annotations") {
+				const annotationsData = await this.getBookmarkAnnotations(bookmark.id);
+				this.addBookmarkAnnotations(bookmark, annotationsData);
 			}
-
 		}
-
 	}
 
 	async getBookmarkAnnotations(bookmarkId: string) {
 		const annotations = await this.api.getBookmarkAnnotations(bookmarkId);
+		if (!annotations) {
+			new Notice(`Error getting annotations for ${bookmarkId}`);
+		}
 		return annotations;
 	}
 
@@ -104,8 +93,8 @@ export default class RDPlugin extends Plugin {
 		return multipart;
 	}
 
-	async addBookmarkMD(bookmark: Bookmark, bookmarkData: any, annotationsData: Annotation[]) {
-		const filePath = `${this.bookmarkFolderPath}/${Utils.sanitizeFileName(bookmark.title)}.md`;
+	async addBookmarkMD(bookmark: any, bookmarkData: any, annotationsData: any) {
+		const filePath = `${this.settings.folder}/${Utils.sanitizeFileName(bookmark.title)}.md`;
 		let noteContent = bookmarkData;
 		if (annotationsData) {
 			const annotations = this.buildAnnotations(bookmark, annotationsData);
@@ -114,7 +103,7 @@ export default class RDPlugin extends Plugin {
 		await this.createFile(bookmark, filePath, noteContent);
 	}
 
-	async addBookmarkMP(bookmark: Bookmark, bookmarkData: any, annotationsData: Annotation[]) {
+	async addBookmarkMP(bookmark: any, bookmarkData: any, annotationsData: any) {
 		const partsData: MultipartPart[] = await Utils.parseMultipart(bookmarkData);
 
 		const texts = [];
@@ -138,7 +127,7 @@ export default class RDPlugin extends Plugin {
 		}
 
 		for (const text of texts) {
-			const filePath = `${this.bookmarkFolderPath}/${Utils.sanitizeFileName(bookmark.title)}.md`;
+			const filePath = `${this.settings.folder}/${Utils.sanitizeFileName(bookmark.title)}.md`;
 			let noteContent = Utils.updateImagePaths(text.content, './', './imgs/');
 			if (annotationsData) {
 				const annotations = this.buildAnnotations(bookmark, annotationsData);
@@ -148,17 +137,16 @@ export default class RDPlugin extends Plugin {
 		}
 
 		for (const image of images) {
-			const filePath = `${this.bookmarkImagesFolderPath}/${image.filename}`;
+			const filePath = `${`${this.settings.folder}/imgs`}/${image.filename}`;
 			await this.createFile(bookmark, filePath, image.content, false);
 		}
 	}
 
-	async addBookmarkAnnotations(bookmark: Bookmark, annotationsData: Annotation[]) {
-		const filePath = `${this.bookmarkFolderPath}/${Utils.sanitizeFileName(bookmark.title)}.md`;
+	async addBookmarkAnnotations(bookmark: any, annotationsData: any) {
+		const filePath = `${this.settings.folder}/${Utils.sanitizeFileName(bookmark.title)}.md`;
 		const annotations = this.buildAnnotations(bookmark, annotationsData);
 		await this.createFile(bookmark, filePath, annotations);
 	}
-
 
 	buildAnnotations(bookmark: any, annotationsData: any) {
 		let annotationsContent = "# Annotations\n";
