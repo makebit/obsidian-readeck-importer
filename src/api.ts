@@ -1,5 +1,5 @@
 import { requestUrl } from "obsidian";
-import { Annotation, Bookmark, ReadeckPluginSettings } from "./interfaces";
+import { Annotation, Bookmark, PaginatedResponse, ReadeckPluginSettings } from "./interfaces";
 
 export class ReadeckApi {
     settings: ReadeckPluginSettings;
@@ -9,9 +9,13 @@ export class ReadeckApi {
     }
 
     async getBookmarks(
+        limit: number = 50,
+        offset: number = 0,
         lastSyncAt: string = ''
-    ): Promise<Bookmark[]> {
+    ): Promise<PaginatedResponse<Bookmark>> {
         const params = new URLSearchParams({
+            limit: limit.toString(),
+            offset: offset.toString(),
             ...(lastSyncAt && { updated_since: lastSyncAt })
         });
 
@@ -22,8 +26,14 @@ export class ReadeckApi {
                 'Authorization': `Bearer ${this.settings.apiToken}`
             }
         });
-        const bookmarks = await response.json;
-        return bookmarks;
+
+        return {
+			items: await response.json,
+			pagination: {
+				current_page: parseInt(response.headers["current-page"]),
+				total_pages: parseInt(response.headers["total-pages"]),
+			},
+		};
     }
 
     async getBookmarkAnnotations(bookmarkId: string): Promise<Annotation[]> {
