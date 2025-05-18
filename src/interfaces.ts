@@ -3,6 +3,7 @@ export interface ReadeckPluginSettings {
 	apiToken: string;
 	username: string,
 	folder: string;
+	lastSyncAt: string;
 	overwrite: boolean;
 	mode: string;
 }
@@ -53,6 +54,7 @@ export const DEFAULT_SETTINGS: ReadeckPluginSettings = {
 	apiToken: "",
 	username: "",
 	folder: "Readeck",
+	lastSyncAt: "",
 	overwrite: false,
 	mode: "text",
 }

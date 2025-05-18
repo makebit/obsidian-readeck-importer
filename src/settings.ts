@@ -91,6 +91,17 @@ export class RDSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
+				.setName('Last Sync')
+				.setDesc('Last time the plugin synced with Readeck. The "Sync" command fetches articles updated after this timestamp')
+				.addText(text => text
+					.setPlaceholder('MM/dd/yyyy, h:mm:ss a')
+					.setValue(this.plugin.settings.lastSyncAt)
+					.onChange(async (value) => {
+						this.plugin.settings.lastSyncAt = value;
+						await this.plugin.saveSettings();
+					}));
+
+		new Setting(containerEl)
 			.setName('Overwrite if it already exists')
 			.setDesc('Overwrite the note if the bookmark already exists. Warning: the note will be overwritten')
 			.addToggle(toggle => toggle.setValue(this.plugin.settings.overwrite)
