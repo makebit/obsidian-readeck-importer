@@ -1,5 +1,5 @@
 import { Notice, Plugin, TFile } from "obsidian";
-import { DEFAULT_SETTINGS, ReadeckPluginSettings } from "./interfaces";
+import { Bookmark, DEFAULT_SETTINGS, ReadeckPluginSettings } from "./interfaces";
 import { RDSettingTab } from "./settings";
 import { ReadeckApi } from "./api"
 import { Utils } from "./utils"
@@ -29,9 +29,21 @@ export default class RDPlugin extends Plugin {
 	}
 
 	async getReadeckData() {
-		const bookmarks = await this.api.getBookmarks();
+		let bookmarks: Bookmark[] = [];
 
-		if (!bookmarks) {
+		try {
+			let page = 0;
+			let hasMore = true;
+
+			while (hasMore) {
+				const response = await this.api.getBookmarks(50, page * 50);
+				hasMore =
+					response.pagination.current_page <
+					response.pagination.total_pages;
+				page++;
+				bookmarks = [...bookmarks, ...response.items];
+			}
+		} catch (error) {
 			new Notice(`Error getting bookmarks`);
 			return;
 		}
