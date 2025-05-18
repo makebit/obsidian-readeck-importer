@@ -7,6 +7,14 @@ export interface ReadeckPluginSettings {
 	mode: string;
 }
 
+export interface PaginatedResponse<T> {
+	items: T[];
+	pagination: {
+		current_page: number;
+		total_pages: number;
+	};
+}
+
 export interface Bookmark {
 	id: string,
 	href: string,
