@@ -29,7 +29,11 @@ export default class RDPlugin extends Plugin {
 	}
 
 	async getReadeckData() {
-		const bookmarks = await this.api.getBookmarks();
+		const { lastSyncAt } = this.settings;
+
+		const bookmarks = await this.api.getBookmarks(
+			Utils.parseDateStrToISO(lastSyncAt),
+		);
 
 		if (!bookmarks) {
 			new Notice(`Error getting bookmarks`);
@@ -73,6 +77,9 @@ export default class RDPlugin extends Plugin {
 				this.addBookmarkAnnotations(bookmark, annotationsData);
 			}
 		}
+
+		this.settings.lastSyncAt = new Date().toLocaleString();
+		await this.saveSettings()
 	}
 
 	async getBookmarkAnnotations(bookmarkId: string) {

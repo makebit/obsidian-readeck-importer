@@ -8,9 +8,15 @@ export class ReadeckApi {
         this.settings = settings;
     }
 
-    async getBookmarks(): Promise<Bookmark[]> {
+    async getBookmarks(
+        lastSyncAt: string = ''
+    ): Promise<Bookmark[]> {
+        const params = new URLSearchParams({
+            ...(lastSyncAt && { updated_since: lastSyncAt })
+        });
+
         const response = await requestUrl({
-            url: `${this.settings.apiUrl}/api/bookmarks`,
+            url: `${this.settings.apiUrl}/api/bookmarks?${params.toString()}`,
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${this.settings.apiToken}`
