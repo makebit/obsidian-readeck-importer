@@ -70,7 +70,9 @@ export default class RDPlugin extends Plugin {
 				this.addBookmarkMP(bookmark, bookmarkData, annotationsData);
 			} else if (this.settings.mode == "annotations") {
 				const annotationsData = await this.getBookmarkAnnotations(bookmark.id);
-				this.addBookmarkAnnotations(bookmark, annotationsData);
+				if(annotationsData.length > 0) {
+					this.addBookmarkAnnotations(bookmark, annotationsData);
+				}
 			}
 		}
 	}
