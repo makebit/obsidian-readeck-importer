@@ -70,8 +70,9 @@ export default class RDPlugin extends Plugin {
 				this.addBookmarkMP(bookmark, bookmarkData, annotationsData);
 			} else if (this.settings.mode == "annotations") {
 				const annotationsData = await this.getBookmarkAnnotations(bookmark.id);
+				const bookmarkMetadata = await this.getBookmarkMetadata(bookmark.id);
 				if(annotationsData.length > 0) {
-					this.addBookmarkAnnotations(bookmark, annotationsData);
+					this.addBookmarkAnnotations(bookmark, bookmarkMetadata, annotationsData);
 				}
 			}
 		}
@@ -88,6 +89,12 @@ export default class RDPlugin extends Plugin {
 	async getBookmarkMD(bookmarkId: string) {
 		const text = await this.api.getBookmarkMD(bookmarkId);
 		return text;
+	}
+
+	async getBookmarkMetadata(bookmarkId: string) {
+		const text = await this.api.getBookmarkMD(bookmarkId);
+		const metadata = text.split('---\n')[1];
+		return metadata;
 	}
 
 	async getBookmarkMP(bookmarkId: string) {
@@ -144,10 +151,11 @@ export default class RDPlugin extends Plugin {
 		}
 	}
 
-	async addBookmarkAnnotations(bookmark: any, annotationsData: any) {
+	async addBookmarkAnnotations(bookmark: any, bookmarkMetadata: any, annotationsData: any) {
 		const filePath = `${this.settings.folder}/${Utils.sanitizeFileName(bookmark.title)}.md`;
 		const annotations = this.buildAnnotations(bookmark, annotationsData);
-		await this.createFile(bookmark, filePath, annotations);
+		const metadataAnnotations = `---\n${bookmarkMetadata}---\n${annotations}`;
+		await this.createFile(bookmark, filePath, metadataAnnotations);
 	}
 
 	buildAnnotations(bookmark: any, annotationsData: any) {
