@@ -25,6 +25,17 @@ export default class RDPlugin extends Plugin {
 			callback: () => this.getReadeckData(),
 		});
 
+		this.addCommand({
+			id: 'resync',
+			name: 'Resync all bookmarks',
+			callback: async () => {
+				this.settings.lastSyncAt = ''
+				await this.saveSettings()
+				new Notice('Readeck Last Sync reset')
+				await this.getReadeckData()
+			},
+		  })
+
 		this.api = new ReadeckApi(this.settings);
 	}
 
