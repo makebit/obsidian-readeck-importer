@@ -29,7 +29,7 @@ export class Utils {
                 await parseMultipart(multipartMessage, { boundary }, async (part) => {
                     parts.push(part);
                   });
-                
+
                 resolve(parts);
             } catch (error) {
                 console.error("Error parsing multipart data:", error);
@@ -47,4 +47,11 @@ export class Utils {
 
         return updatedtext;
     }
+
+	static parseDateStrToISO(date: string): string | undefined {
+		const syncAtDate = new Date(date);
+		return isNaN(syncAtDate.getTime())
+			? undefined
+			: syncAtDate.toISOString();
+	}
 }

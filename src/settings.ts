@@ -1,4 +1,4 @@
-import { App, ButtonComponent, Modal, Notice, PluginSettingTab, Setting } from "obsidian";
+import { App, ButtonComponent, Modal, Notice, PluginSettingTab, Setting, TextComponent } from "obsidian";
 
 import ReadeckPlugin from "./plugin";
 
@@ -89,6 +89,31 @@ export class RDSettingTab extends PluginSettingTab {
 					this.plugin.settings.folder = value;
 					await this.plugin.saveSettings();
 				}));
+
+		let lastSyncText: TextComponent;
+		let lastSyncButton: ButtonComponent;
+		new Setting(containerEl)
+			.setName('Last Sync')
+			.setDesc('Last time the plugin synced with Readeck. The "Sync" command fetches articles updated after this timestamp')
+			.addText((text) => {
+				lastSyncText = text;
+				text.setPlaceholder('MM/dd/yyyy, h:mm:ss a')
+					.setValue(this.plugin.settings.lastSyncAt)
+					.setDisabled(true);
+			})
+			.addButton((btn) => {
+				lastSyncButton = btn;
+				btn.setButtonText('Reset')
+					.setTooltip('Reset the last sync timestamp')
+					.onClick(async () => {
+						this.plugin.settings.lastSyncAt = '';
+						await this.plugin.saveSettings();
+
+						new Notice('Last sync reset');
+						lastSyncText.setValue('');
+						lastSyncButton.setButtonText('Reset').setDisabled(true);
+					});
+			});
 
 		new Setting(containerEl)
 			.setName('Overwrite if it already exists')

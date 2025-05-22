@@ -1,5 +1,5 @@
 import { Notice, Plugin, TFile } from "obsidian";
-import { DEFAULT_SETTINGS, ReadeckPluginSettings } from "./interfaces";
+import { Bookmark, DEFAULT_SETTINGS, ReadeckPluginSettings } from "./interfaces";
 import { RDSettingTab } from "./settings";
 import { ReadeckApi } from "./api"
 import { Utils } from "./utils"
@@ -25,13 +25,42 @@ export default class RDPlugin extends Plugin {
 			callback: () => this.getReadeckData(),
 		});
 
+		this.addCommand({
+			id: 'resync',
+			name: 'Resync all bookmarks',
+			callback: async () => {
+				this.settings.lastSyncAt = ''
+				await this.saveSettings()
+				new Notice('Readeck Last Sync reset')
+				await this.getReadeckData()
+			},
+		  })
+
 		this.api = new ReadeckApi(this.settings);
 	}
 
 	async getReadeckData() {
-		const bookmarks = await this.api.getBookmarks();
+		const { lastSyncAt } = this.settings;
 
-		if (!bookmarks) {
+		let bookmarks: Bookmark[] = [];
+
+		try {
+			let page = 0;
+			let hasMore = true;
+
+			while (hasMore) {
+				const response = await this.api.getBookmarks(
+					50,
+					page * 50,
+					Utils.parseDateStrToISO(lastSyncAt)
+				);
+				hasMore =
+					response.pagination.current_page <
+					response.pagination.total_pages;
+				page++;
+				bookmarks = [...bookmarks, ...response.items];
+			}
+		} catch (error) {
 			new Notice(`Error getting bookmarks`);
 			return;
 		}
@@ -76,6 +105,9 @@ export default class RDPlugin extends Plugin {
 				}
 			}
 		}
+
+		this.settings.lastSyncAt = new Date().toLocaleString();
+		await this.saveSettings()
 	}
 
 	async getBookmarkAnnotations(bookmarkId: string) {
