@@ -123,6 +123,15 @@ export class RDSettingTab extends PluginSettingTab {
 					this.plugin.settings.overwrite = value;
 					await this.plugin.saveData(this.plugin.settings);
 				}));
+		
+		new Setting(containerEl)
+			.setName('Delete')
+			.setDesc('Delete the note if the bookmark was deleted')
+			.addToggle(toggle => toggle.setValue(this.plugin.settings.delete)
+				.onChange(async (value) => {
+					this.plugin.settings.delete = value;
+					await this.plugin.saveData(this.plugin.settings);
+				}));
 
 		new Setting(containerEl)
 			.setName('Set mode')

@@ -5,43 +5,30 @@ export interface ReadeckPluginSettings {
 	folder: string;
 	lastSyncAt: string;
 	overwrite: boolean;
+	delete: boolean;
 	mode: string;
 }
 
-export interface PaginatedResponse<T> {
+export interface Response<T> {
 	items: T[];
-	pagination: {
-		current_page: number;
-		total_pages: number;
-	};
+}
+
+export interface BookmarkStatus {
+	id: string,
+	time: Date,
+	type: string,
+}
+
+export interface BookmarkData {
+	id: string;
+	text: string | null;
+	json: Bookmark;
+	images: any[];
+	annotations: Annotation[];
 }
 
 export interface Bookmark {
-	id: string,
-	href: string,
-	created: string,
-	updated: string,
-	state: number,
-	loaded: boolean,
-	url: string,
 	title: string,
-	site_name: string,
-	site: string,
-	authors: string[],
-	lang: string,
-	text_direction: string,
-	document_type: string,
-	type: string,
-	has_article: boolean,
-	description: string,
-	is_deleted: boolean,
-	is_marked: boolean,
-	is_archived: boolean,
-	labels: string[],
-	read_progress: number,
-	resources: any,
-	word_count: number,
-	reading_time: number,
 }
 
 export interface Annotation {
@@ -64,5 +51,6 @@ export const DEFAULT_SETTINGS: ReadeckPluginSettings = {
 	folder: "Readeck",
 	lastSyncAt: "",
 	overwrite: false,
+	delete: false,
 	mode: "text",
 }

@@ -1,5 +1,5 @@
-import { Notice, Plugin, TFile } from "obsidian";
-import { Bookmark, DEFAULT_SETTINGS, ReadeckPluginSettings } from "./interfaces";
+import { Notice, Plugin, TFile, TFolder } from "obsidian";
+import { Annotation, BookmarkData, BookmarkStatus, DEFAULT_SETTINGS, ReadeckPluginSettings } from "./interfaces";
 import { RDSettingTab } from "./settings";
 import { ReadeckApi } from "./api"
 import { Utils } from "./utils"
@@ -39,73 +39,118 @@ export default class RDPlugin extends Plugin {
 		this.api = new ReadeckApi(this.settings);
 	}
 
+	/*
+	* Fetch Readeck data and process bookmarks
+	* 1. Get bookmark status since last sync
+	* 2. For each updated bookmark, fetch data based on mode
+	* 3. Create/update markdown notes and save images
+	* 4. Delete removed bookmarks if setting enabled
+	* 5. Update last sync time
+	*/
 	async getReadeckData() {
 		const { lastSyncAt } = this.settings;
 
-		let bookmarks: Bookmark[] = [];
-
+		// Get bookmark status since last sync
+		let bookmarksStatus: BookmarkStatus[] = [];
 		try {
-			let page = 0;
-			let hasMore = true;
-
-			while (hasMore) {
-				const response = await this.api.getBookmarks(
-					50,
-					page * 50,
-					Utils.parseDateStrToISO(lastSyncAt)
-				);
-				hasMore =
-					response.pagination.current_page <
-					response.pagination.total_pages;
-				page++;
-				bookmarks = [...bookmarks, ...response.items];
-			}
+			const response = await this.api.getBookmarksStatus(
+				Utils.parseDateStrToISO(lastSyncAt)
+			);
+			bookmarksStatus = response.items;
 		} catch (error) {
-			new Notice(`Error getting bookmarks`);
+			new Notice(`Error getting bookmarks, error ${error}`);
 			return;
 		}
 
-		if (bookmarks.length <= 0) {
-			new Notice("No bookmarks found");
+		// Check if bookmarks were returned
+		if (bookmarksStatus.length <= 0) {
+			new Notice("No new bookmarks found");
 			return;
 		}
 
+		// Ensure bookmarks folder exists
 		const bookmarksFolder = this.app.vault.getAbstractFileByPath(this.settings.folder);
 		if (!bookmarksFolder) {
 			await this.app.vault.createFolder(this.settings.folder);
 		}
 
-		if (["textImages", "textImagesAnnotations"].includes(this.settings.mode)) {
-			const bookmarksImgsFolder = this.app.vault.getAbstractFileByPath(`${this.settings.folder}/imgs`);
-			if (!bookmarksImgsFolder) {
-				await this.app.vault.createFolder(`${this.settings.folder}/imgs`);
-			}
+		// Determine what data to fetch based on mode
+		let get = {
+			md: false,
+			res: false,
+			annotations: false
+		};
+		if (this.settings.mode == "text") {
+			get.md = true;
+		} else if (this.settings.mode == "textImages") {
+			get.md = true;
+			get.res = true;
+		} else if (this.settings.mode == "textAnnotations") {
+			get.md = true;
+			get.annotations = true;
+		} else if (this.settings.mode == "textImagesAnnotations") {
+			get.md = true;
+			get.res = true;
+			get.annotations = true;
+		} else if (this.settings.mode == "annotations") {
+			get.annotations = true;
+		}
+		
+		// Initialize bookmarks data structure (a map of bookmark ID to its data)
+		const toUpdateIds = bookmarksStatus.filter(b => b.type === 'update').map(b => b.id);
+		const bookmarksData = new Map<string, BookmarkData>();
+		for (const id of toUpdateIds) {
+			bookmarksData.set(id, { id: id, text: null, json: { title: '' }, images: [], annotations: [] });
 		}
 
-		for (const bookmark of bookmarks) {
-			if (this.settings.mode == "text") {
-				const bookmarkData = await this.getBookmarkMD(bookmark.id);
-				this.addBookmarkMD(bookmark, bookmarkData, null);
-			} else if (this.settings.mode == "textImages") {
-				const bookmarkData = await this.getBookmarkMP(bookmark.id);
-				this.addBookmarkMP(bookmark, bookmarkData, null);
-			} else if (this.settings.mode == "textAnnotations") {
-				const bookmarkData = await this.getBookmarkMD(bookmark.id);
-				const annotationsData = await this.getBookmarkAnnotations(bookmark.id);
-				this.addBookmarkMD(bookmark, bookmarkData, annotationsData);
-			} else if (this.settings.mode == "textImagesAnnotations") {
-				const bookmarkData = await this.getBookmarkMP(bookmark.id);
-				const annotationsData = await this.getBookmarkAnnotations(bookmark.id);
-				this.addBookmarkMP(bookmark, bookmarkData, annotationsData);
-			} else if (this.settings.mode == "annotations") {
-				const annotationsData = await this.getBookmarkAnnotations(bookmark.id);
-				const bookmarkMetadata = await this.getBookmarkMetadata(bookmark.id);
-				if(annotationsData.length > 0) {
-					this.addBookmarkAnnotations(bookmark, bookmarkMetadata, annotationsData);
+		if (get.md || get.annotations) {
+			// Fetch bookmarks data in multipart format
+			const bookmarksMPData = await this.getBookmarksData(toUpdateIds, get.md, get.res, true);
+			// Parse multipart data
+			await this.parseBookmarksMP(bookmarksData, bookmarksMPData);
+		}
+		if (get.annotations) {
+			// Fetch annotations for each updated bookmark
+			for (const bookmarkId of toUpdateIds) {
+				const annotationsData = await this.getBookmarkAnnotations(bookmarkId);
+				for (const annotationData of annotationsData) {
+					const bookmark: BookmarkData = bookmarksData.get(bookmarkId)!;
+					bookmark.annotations.push(annotationData);
+				}
+			}
+		}
+				
+		// Process each bookmark
+		for (const [id, bookmark] of bookmarksData.entries()) {
+			// Create markdown note
+			if (bookmark.text || bookmark.annotations.length > 0) {
+				// Create bookmark folder
+				const bookmarkFolderPath = `${this.settings.folder}/${id}`;
+				await this.createFolderIfNotExists(id, bookmarkFolderPath);
+				this.addBookmarkMD(id, bookmark.json.title, bookmark.text, bookmark.annotations, bookmarkFolderPath);
+			}
+
+			// Save images
+			if (bookmark.images.length > 0 && bookmark.json) {
+				const bookmarkImgsFolderPath = `${this.settings.folder}/${id}/imgs`;
+				await this.createFolderIfNotExists(id, bookmarkImgsFolderPath);
+				for (const image of bookmark.images) {
+					const filePath = `${bookmarkImgsFolderPath}/${image.filename}`;
+					await this.createFile(bookmark.json.title, filePath, image.content, false);
 				}
 			}
 		}
 
+		// Delete removed bookmarks
+		if (this.settings.delete) {
+			const toDeleteIds = bookmarksStatus.filter(b => b.type === 'delete').map(b => b.id);
+			for (const id of toDeleteIds) {
+				const bookmarkFolderPath = `${this.settings.folder}/${id}`;
+				await this.deleteFolder(id, bookmarkFolderPath, true);
+			}
+		}
+		
+		// Update last sync time
 		this.settings.lastSyncAt = new Date().toLocaleString();
 		await this.saveSettings()
 	}
@@ -118,69 +163,49 @@ export default class RDPlugin extends Plugin {
 		return annotations;
 	}
 
-	async getBookmarkMD(bookmarkId: string) {
-		const text = await this.api.getBookmarkMD(bookmarkId);
-		return text;
-	}
-
-	async getBookmarkMetadata(bookmarkId: string) {
-		const text = await this.api.getBookmarkMD(bookmarkId);
-		const metadata = text.split('---\n')[1];
-		return metadata;
-	}
-
-	async getBookmarkMP(bookmarkId: string) {
-		const multipart = await this.api.getBookmarkMultipart(bookmarkId);
+	async getBookmarksData(
+		ids: string[] = [],
+        markdown: boolean = false,
+        resources: boolean = false,
+		json: boolean = false,
+	) {
+		const multipart = await this.api.getBookmarks(ids, markdown, resources, json);
 		return multipart;
 	}
 
-	async addBookmarkMD(bookmark: any, bookmarkData: any, annotationsData: any) {
-		const filePath = `${this.settings.folder}/${Utils.sanitizeFileName(bookmark.title)}.md`;
-		let noteContent = bookmarkData;
-		if (annotationsData) {
-			const annotations = this.buildAnnotations(bookmark, annotationsData);
+	async addBookmarkMD(bookmarkId: string, bookmarkTitle: string, bookmarkContent: string | null, bookmarkAnnotations: Annotation[], bookmarkFolderPath?: string) {
+		const filePath = `${bookmarkFolderPath}/${Utils.sanitizeFileName(bookmarkTitle)}.md`;
+		let noteContent = bookmarkContent || '';
+		if (bookmarkAnnotations.length > 0) {
+			const annotations = this.buildAnnotations(bookmarkId, bookmarkAnnotations);
 			noteContent += `\n\n${annotations}`;
 		}
-		await this.createFile(bookmark, filePath, noteContent);
+		await this.createFile(bookmarkTitle, filePath, noteContent);
 	}
 
-	async addBookmarkMP(bookmark: any, bookmarkData: any, annotationsData: any) {
-		const partsData: MultipartPart[] = await Utils.parseMultipart(bookmarkData);
+	async parseBookmarksMP(bookmarksData: Map<string, BookmarkData>, bookmarksMPData: any): Promise<boolean> {
+		const partsData: MultipartPart[] = await Utils.parseMultipart(bookmarksMPData);
 
-		const texts = [];
-		const images = [];
 		for (const partData of partsData) {
 			const mediaType = partData.mediaType || '';
+			const bookmarkId = partData.headers.get('Bookmark-Id') || '';	
+			const bookmark: BookmarkData = bookmarksData.get(bookmarkId)!;
 			if (mediaType == 'text/markdown') {
 				const markdownContent = await partData.text();
-				texts.push({
-					filename: partData.filename,
-					content: markdownContent,
-				});
+				bookmark.text = markdownContent;
 			} else if (mediaType.includes('image')) {
-				images.push({
+				bookmark.images.push({
 					filename: partData.filename,
 					content: partData.body,
 				});
+			} else if (mediaType.includes('json')) {
+				const jsonText = await partData.text();
+				bookmark.json = JSON.parse(jsonText);
 			} else {
 				console.warn(`Unknown content type: ${partData.mediaType}`);
 			}
 		}
-
-		for (const text of texts) {
-			const filePath = `${this.settings.folder}/${Utils.sanitizeFileName(bookmark.title)}.md`;
-			let noteContent = Utils.updateImagePaths(text.content, './', './imgs/');
-			if (annotationsData) {
-				const annotations = this.buildAnnotations(bookmark, annotationsData);
-				noteContent += `\n\n${annotations}`
-			}
-			await this.createFile(bookmark, filePath, noteContent);
-		}
-
-		for (const image of images) {
-			const filePath = `${`${this.settings.folder}/imgs`}/${image.filename}`;
-			await this.createFile(bookmark, filePath, image.content, false);
-		}
+		return true;
 	}
 
 	async addBookmarkAnnotations(bookmark: any, bookmarkMetadata: any, annotationsData: any) {
@@ -190,34 +215,57 @@ export default class RDPlugin extends Plugin {
 		await this.createFile(bookmark, filePath, metadataAnnotations);
 	}
 
-	buildAnnotations(bookmark: any, annotationsData: any) {
+	buildAnnotations(bookmarkId: string, bookmarkAnnotations: Annotation[]) {
 		let annotationsContent = "# Annotations\n";
-		if (annotationsData) {
-			annotationsContent = annotationsContent + annotationsData.map(
+		if (bookmarkAnnotations.length > 0) {
+			annotationsContent = annotationsContent + bookmarkAnnotations.map(
 				(ann: any) =>
 					`> ${ann.text}` +
-					` - [#](${this.settings.apiUrl}/bookmarks/${bookmark.id}#annotation-${ann.id})`
+					` - [#](${this.settings.apiUrl}/bookmarks/${bookmarkId}#annotation-${ann.id})`
 			).join('\n\n');
 		}
 		return annotationsContent
 	}
 
-	async createFile(bookmark: any, filePath: string, content: any, showNotice: boolean = true) {
+	async createFile(bookmarkTitle: string, filePath: string, content: any, showNotice: boolean = true) {
 		const file = this.app.vault.getAbstractFileByPath(filePath);
 
 		if (file && file instanceof TFile) {
 			if (this.settings.overwrite) {
 				// the file exists and overwrite is true
 				await this.app.vault.modify(file, content);
-				if (showNotice) { new Notice(`Overwriting note for ${bookmark.title}`); }
+				if (showNotice) { new Notice(`Overwriting note for ${bookmarkTitle}`); }
 			} else {
 				// the file exists and overwrite is false
-				if (showNotice) { new Notice(`Note for ${bookmark.title} already exists`); }
+				if (showNotice) { new Notice(`Note for ${bookmarkTitle} already exists`); }
 			}
 		} else if (!file) {
 			// create file if not exists
 			await this.app.vault.create(filePath, content);
-			if (showNotice) { new Notice(`Creating note for ${bookmark.title}`); }
+			if (showNotice) { new Notice(`Creating note for ${bookmarkTitle}`); }
+		}
+	}
+
+	async createFolderIfNotExists(id: string, path: string, showNotice: boolean = false) {
+		const folder = this.app.vault.getAbstractFileByPath(path);
+
+		if (folder && folder instanceof TFolder) {
+			if (showNotice) { new Notice(`Folder already exists in ${id}`); }
+		} else {
+			// create file if not exists
+			await this.app.vault.createFolder(path);
+			if (showNotice) { new Notice(`Creating folder for ${id}`); }
+		}
+	}
+
+	async deleteFolder(id: string, path:string, showNotice: boolean = false) {
+		const folder = this.app.vault.getAbstractFileByPath(path);
+
+		if (folder && folder instanceof TFolder) {
+			await this.app.vault.delete(folder, true);
+			if (showNotice) { new Notice(`Deleting bookmark ${id}`); }
+		} else if (!folder) {
+			if (showNotice) { new Notice(`Error deleting bookmark ${id}`); }
 		}
 	}
 

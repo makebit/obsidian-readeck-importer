@@ -1,5 +1,5 @@
 import { requestUrl } from "obsidian";
-import { Annotation, Bookmark, PaginatedResponse, ReadeckPluginSettings } from "./interfaces";
+import { Annotation, Response, ReadeckPluginSettings, BookmarkStatus } from "./interfaces";
 
 export class ReadeckApi {
     settings: ReadeckPluginSettings;
@@ -8,19 +8,15 @@ export class ReadeckApi {
         this.settings = settings;
     }
 
-    async getBookmarks(
-        limit: number = 50,
-        offset: number = 0,
+    async getBookmarksStatus(
         lastSyncAt: string = ''
-    ): Promise<PaginatedResponse<Bookmark>> {
+    ): Promise<Response<BookmarkStatus>> {
         const params = new URLSearchParams({
-            limit: limit.toString(),
-            offset: offset.toString(),
-            ...(lastSyncAt && { updated_since: lastSyncAt })
+            ...(lastSyncAt && { since: lastSyncAt })
         });
 
         const response = await requestUrl({
-            url: `${this.settings.apiUrl}/api/bookmarks?${params.toString()}`,
+            url: `${this.settings.apiUrl}/api/bookmarks/sync?${params.toString()}`,
             method: 'GET',
             headers: {
                 'Authorization': `Bearer ${this.settings.apiToken}`
@@ -28,12 +24,34 @@ export class ReadeckApi {
         });
 
         return {
-			items: await response.json,
-			pagination: {
-				current_page: parseInt(response.headers["current-page"]),
-				total_pages: parseInt(response.headers["total-pages"]),
-			},
+			items: await response.json
 		};
+    }
+
+    async getBookmarks(
+        ids: string[] = [],
+        markdown: boolean = false,
+        resources: boolean = false,
+        json: boolean = false,
+    ) {
+        const articleResponse = await requestUrl({
+            url: `${this.settings.apiUrl}/api/bookmarks/sync`,
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${this.settings.apiToken}`,
+                'Accept': 'multipart/mixed',
+                'Content-type': 'application/json',
+            },
+            body: JSON.stringify({
+                "id": ids,
+                "with_json": json,
+                "with_html": false,
+                "with_markdown": markdown,
+                "with_resources": resources,
+                "resource_prefix": "./imgs"
+            }),
+        });
+        return articleResponse;
     }
 
     async getBookmarkAnnotations(bookmarkId: string): Promise<Annotation[]> {
@@ -46,30 +64,6 @@ export class ReadeckApi {
         });
         const annotations = await annotationResponse.json;
         return annotations;
-    }
-
-    async getBookmarkMD(bookmarkId: string): Promise<string> {
-        const articleResponse = await requestUrl({
-            url: `${this.settings.apiUrl}/api/bookmarks/${bookmarkId}/article.md?v=${Date.now()}`,
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${this.settings.apiToken}`
-            }
-        });
-        const text = await articleResponse.text;
-        return text;
-    }
-
-    async getBookmarkMultipart(bookmarkId: string) {
-        const articleResponse = await requestUrl({
-            url: `${this.settings.apiUrl}/api/bookmarks/${bookmarkId}/article.md?v=${Date.now()}`,
-            method: 'GET',
-            headers: {
-                'Authorization': `Bearer ${this.settings.apiToken}`,
-                'Accept': 'multipart/alternative',
-            }
-        });
-        return articleResponse;
     }
 
     async getToken(username: string, password: string): Promise<string> {
