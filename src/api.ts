@@ -1,6 +1,5 @@
-import { Notice, requestUrl } from "obsidian";
+import { requestUrl } from "obsidian";
 import { Annotation, Response, ReadeckPluginSettings, BookmarkStatus, oAuthClient, DeviceAuthorization, AccessToken, oAuthError, oAuthErrorEnum, oAuthClientType } from "./interfaces";
-import { stat } from "fs";
 import { randomUUID } from "crypto";
 import manifest from "../manifest.json";
 
@@ -69,22 +68,6 @@ export class ReadeckApi {
         return annotations;
     }
 
-    // Perform OAuth Device Flow to get API token
-    async handleoAuthDeviceFlow(): Promise<string> {
-        try {   
-            // Step 1: Start device authorization
-            const deviceAuth = await this.authorizeDevice();
-            // Step 2: Prompt user to authorize
-            new Notice(`Authorize the application by visiting ${deviceAuth.verification_uri} and entering code: ${deviceAuth.user_code}`);
-            // Step 3: Poll for token
-            const tokenResponse = await this.pollDeviceToken(deviceAuth.device_code, deviceAuth.interval, deviceAuth.expires_in);
-            return tokenResponse.access_token;
-        } catch (e) {
-            new Notice(`OAuth Device Flow failed: ${e.message}. Falling back to password login.`);
-            throw e;
-        }
-    }
-
     async createoAuthClient(client_name: string): Promise<oAuthClient> {
         try {
             const response = await requestUrl({
@@ -138,7 +121,7 @@ export class ReadeckApi {
     // Poll OAuth token endpoint until user authorizes or error/expiry
     async pollDeviceToken(client_id: string, device_code: string, intervalSec: number, maxDurationSeconds: number ): Promise<AccessToken> {
         let delay = Math.max(1, intervalSec);
-        const grant_type = "urn:ietf:params:oauth:grant-type:device_code"; // see API docs
+        const grant_type = "urn:ietf:params:oauth:grant-type:device_code";
         const startTime = Date.now();
 
         while (true) {
@@ -170,10 +153,9 @@ export class ReadeckApi {
                     const body = await tokenResp.json as oAuthError;
                     switch (body.error as oAuthErrorEnum) {
                         case 'authorization_pending':
-                            // keep polling
                             break;
                         case 'slow_down':
-                            delay += 5; // back off
+                            delay += 5;
                             break;
                         case 'expired_token':
                         case 'access_denied':
