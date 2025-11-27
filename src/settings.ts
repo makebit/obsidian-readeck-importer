@@ -34,7 +34,7 @@ export class RDSettingTab extends PluginSettingTab {
 		let logoutButton: ButtonComponent;
 		new Setting(containerEl)
 			.setName('Login')
-			.setDesc('Login via OAuth device flow (fallback to password if unavailable)')
+			.setDesc('Login via OAuth. Attempts deprecated username/password login if oAuth fails')
 			.addButton((btn) => {
 				loginButton = btn;
 				btn
@@ -42,10 +42,10 @@ export class RDSettingTab extends PluginSettingTab {
 					.setDisabled(loggedIn)
 					.setCta()
 					.onClick(async () => {
-						// Prefer OAuth device flow, fallback to password login if not supported
 						loginButton.setDisabled(true);
 						let cancelled = false;
 						try {
+							// Attempt OAuth device flow, fallback to password login if not supported
 							// Step 1: Start oAuth device authorization
 							const oauthClient = await this.plugin.api.createoAuthClient(client_name);
 							
