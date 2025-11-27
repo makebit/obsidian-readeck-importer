@@ -32,7 +32,7 @@ export class RDSettingTab extends PluginSettingTab {
 		let logoutButton: ButtonComponent;
 		new Setting(containerEl)
 			.setName('Login')
-			.setDesc('Login and get a token')
+			.setDesc('Login via OAuth device flow (fallback to password if unavailable)')
 			.addButton((btn) => {
 				loginButton = btn;
 				btn
@@ -40,25 +40,59 @@ export class RDSettingTab extends PluginSettingTab {
 					.setDisabled(loggedIn)
 					.setCta()
 					.onClick(async () => {
-						// Do login
-						new LoginModal(this.app, (username, password) => {
-							this.plugin.api.getToken(username, password)
-								.then(async (token) => {
-									// update values
-									this.plugin.settings.apiToken = token;
-									this.plugin.settings.username = username;
-									await this.plugin.saveSettings();
-									// update ui
-									loginButton.setButtonText(`Logged in as ${this.plugin.settings.username}`);
-									loginButton.setDisabled(true);
-									logoutButton.setDisabled(false);
-								}).catch((error) => {
-									console.log("Login error", error);
-									new Notice('Login error, check your credentials');
-								});
-						}).open();
+						// Prefer OAuth device flow, fallback to password login if not supported
+						loginButton.setDisabled(true);
+						let cancelled = false;
+						try {
+							const device = await this.plugin.api.startDeviceCodeFlow();
+							const modal = new DeviceCodeModal(this.app, device, () => { cancelled = true; });
+							modal.open();
 
+							const token = await this.plugin.api.pollDeviceToken(device.device_code, device.interval ?? 5);
+							if (cancelled) {
+								loginButton.setDisabled(false);
+								return;
+							}
+
+							// update values
+							this.plugin.settings.apiToken = token;
+							this.plugin.settings.username = 'OAuth';
+							await this.plugin.saveSettings();
+
+							// update ui
+							loginButton.setButtonText(`Logged in as ${this.plugin.settings.username}`);
+							loginButton.setDisabled(true);
+							logoutButton.setDisabled(false);
+							modal.close();
+							new Notice('Logged in via OAuth');
+						} catch (err) {
+							// Failed to use OAuth device flow, fallback to password modal
+							console.warn('OAuth device flow not available or failed, falling back to password login', err);
+							new LoginModal(this.app, (username, password) => {
+								this.plugin.api.getToken(username, password)
+									.then(async (token) => {
+										// update values
+										this.plugin.settings.apiToken = token;
+										this.plugin.settings.username = username;
+										await this.plugin.saveSettings();
+										// update ui
+										loginButton.setButtonText(`Logged in as ${this.plugin.settings.username}`);
+										loginButton.setDisabled(true);
+										logoutButton.setDisabled(false);
+									}).catch((error) => {
+										console.log("Login error", error);
+										new Notice('Login error, check your credentials');
+									}).finally(() => {
+										loginButton.setDisabled(this.plugin.settings.apiToken !== "");
+									});
+							}).open();
+						} finally {
+							if (this.plugin.settings.apiToken === "") {
+								loginButton.setDisabled(false);
+							}
+						}
 					})
+
 			}
 			)
 			.addButton((btn) => {
@@ -197,4 +231,44 @@ class LoginModal extends Modal {
 					onSubmit(username, password);
 				}));
 	}
+}
+
+class DeviceCodeModal extends Modal {
+    private onCancel: () => void;
+    private device: { user_code: string; verification_uri: string; verification_uri_complete?: string };
+
+    constructor(app: App, device: { user_code: string; verification_uri: string; verification_uri_complete?: string }, onCancel: () => void) {
+        super(app);
+        this.onCancel = onCancel;
+        this.device = device;
+
+        this.contentEl.addClass("mod-form");
+        this.modalEl.addClass("w-auto");
+        this.setTitle('Authorize Readeck');
+
+        const instructions = this.contentEl.createDiv();
+        instructions.createEl('p', { text: '1) Open the verification URL in your browser.' });
+        const link = instructions.createEl('a', { text: this.device.verification_uri, href: this.device.verification_uri });
+        link.setAttr('target', '_blank');
+
+        instructions.createEl('p', { text: '2) Enter this code to authorize:' });
+        const codeEl = instructions.createEl('div');
+        codeEl.setText(this.device.user_code);
+        codeEl.addClass('device-code');
+
+        const actions = new Setting(this.contentEl)
+            .addButton(btn => btn
+                .setButtonText('Copy Code')
+                .onClick(() => navigator.clipboard?.writeText(this.device.user_code)))
+            .addButton(btn => btn
+                .setButtonText('Open Link')
+                .setCta()
+                .onClick(() => window.open(this.device.verification_uri_complete || this.device.verification_uri, '_blank')))
+            .addButton(btn => btn
+                .setButtonText('Cancel')
+                .onClick(() => {
+                    this.onCancel();
+                    this.close();
+                }));
+    }
 }
