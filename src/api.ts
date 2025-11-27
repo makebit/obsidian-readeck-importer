@@ -1,5 +1,8 @@
-import { requestUrl } from "obsidian";
-import { Annotation, Response, ReadeckPluginSettings, BookmarkStatus, DeviceCodeStart } from "./interfaces";
+import { Notice, requestUrl } from "obsidian";
+import { Annotation, Response, ReadeckPluginSettings, BookmarkStatus, oAuthClient, DeviceAuthorization, AccessToken, oAuthError, oAuthErrorEnum, oAuthClientType } from "./interfaces";
+import { stat } from "fs";
+import { randomUUID } from "crypto";
+import manifest from "../manifest.json";
 
 export class ReadeckApi {
     settings: ReadeckPluginSettings;
@@ -66,8 +69,47 @@ export class ReadeckApi {
         return annotations;
     }
 
-    // Start OAuth Device Code Flow
-    async startDeviceCodeFlow(): Promise<DeviceCodeStart> {
+    // Perform OAuth Device Flow to get API token
+    async handleoAuthDeviceFlow(): Promise<string> {
+        try {   
+            // Step 1: Start device authorization
+            const deviceAuth = await this.authorizeDevice();
+            // Step 2: Prompt user to authorize
+            new Notice(`Authorize the application by visiting ${deviceAuth.verification_uri} and entering code: ${deviceAuth.user_code}`);
+            // Step 3: Poll for token
+            const tokenResponse = await this.pollDeviceToken(deviceAuth.device_code, deviceAuth.interval, deviceAuth.expires_in);
+            return tokenResponse.access_token;
+        } catch (e) {
+            new Notice(`OAuth Device Flow failed: ${e.message}. Falling back to password login.`);
+            throw e;
+        }
+    }
+
+    async createoAuthClient(client_name: string): Promise<oAuthClient> {
+        try {
+            const response = await requestUrl({
+                url: `${this.settings.apiUrl}/api/oauth/client`,
+                method: 'POST',
+                headers: {
+                    Accept: "application/json",
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    client_name,
+                    client_uri: "https://github.com/makebit/obsidian-readeck-importer",
+                    software_id: randomUUID(),
+                    software_version: manifest.version,
+                    grant_types: ["urn:ietf:params:oauth:grant-type:device_code"],
+                })
+            })
+            return response.json as oAuthClient;
+        } catch (e) {
+            throw new Error(`Creating OAuth client failed: ${e.message}`);
+        }
+    };
+
+    // Request OAuth Device Code
+    async authorizeDevice(client_id: string): Promise<DeviceAuthorization> {
         const response = await requestUrl({
             url: `${this.settings.apiUrl}/api/oauth/device`,
             method: 'POST',
@@ -76,31 +118,34 @@ export class ReadeckApi {
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({
-                client_id: "obsidian-readeck-importer",
-                scope: "scoped_bookmarks_r",
+                client_id: client_id,
+                scope: "bookmarks:read", 
             }),
         });
-
-        // If endpoint is not available or returns error, surface it to caller for fallback
-        // Obsidian's requestUrl returns ok even for non-2xx; check status
-        // @ts-ignore - status is available on requestUrl response
-        const status: number = (response as any).status ?? 200;
-        if (status < 200 || status >= 300) {
-            throw new Error(`OAuth device start failed with status ${status}`);
+        
+        const statusCode = response.status as number;
+        switch (statusCode) {
+            case 200:
+                return response.json as DeviceAuthorization;
+            case 400:
+                const error = await response.json as oAuthError;
+                throw new Error(`OAuth device authorization failed: ${error.error_description}`);
+            default:
+                throw new Error(`OAuth device authorization unexpected error: ${response.json}`);
         }
-
-        const data = await response.json as any;
-        return data as DeviceCodeStart;
     }
 
     // Poll OAuth token endpoint until user authorizes or error/expiry
-    async pollDeviceToken(device_code: string, intervalSec: number = 5): Promise<string> {
-        const grant_type = "urn:ietf:params:oauth:grant-type:device_code";
+    async pollDeviceToken(client_id: string, device_code: string, intervalSec: number, maxDurationSeconds: number ): Promise<AccessToken> {
         let delay = Math.max(1, intervalSec);
+        const grant_type = "urn:ietf:params:oauth:grant-type:device_code"; // see API docs
         const startTime = Date.now();
-        const maxDurationMs = 10 * 60 * 1000; // safety cap: 10 minutes
 
         while (true) {
+            if (Date.now() - startTime > maxDurationSeconds * 1000) {
+                throw new Error('OAuth device flow timed out');
+            }
+
             const tokenResp = await requestUrl({
                 url: `${this.settings.apiUrl}/api/oauth/token`,
                 method: 'POST',
@@ -111,35 +156,41 @@ export class ReadeckApi {
                 body: JSON.stringify({
                     grant_type,
                     device_code,
-                    client_id: "obsidian-readeck-importer",
+                    client_id,
                 }),
+                throw: false,
             });
 
-            // @ts-ignore
-            const status: number = (tokenResp as any).status ?? 200;
-            const body = await tokenResp.json as any;
+            const statusCode = tokenResp.status as number;
 
-            if (status >= 200 && status < 300 && body?.access_token) {
-                return body.access_token as string;
-            }
-
-            const err = body?.error || body?.error_description || '';
-            if (err === 'authorization_pending') {
-                // keep polling
-            } else if (err === 'slow_down') {
-                delay += 5; // back off
-            } else if (err === 'expired_token' || err === 'access_denied' || status === 400 || status === 401 || status === 403) {
-                throw new Error(`OAuth device flow failed: ${err || 'unauthorized'}`);
-            }
-
-            if (Date.now() - startTime > maxDurationMs) {
-                throw new Error('OAuth device flow timed out');
+            switch (statusCode) {
+                case 201:
+                    return tokenResp.json as AccessToken;
+                case 400:
+                    const body = await tokenResp.json as oAuthError;
+                    switch (body.error as oAuthErrorEnum) {
+                        case 'authorization_pending':
+                            // keep polling
+                            break;
+                        case 'slow_down':
+                            delay += 5; // back off
+                            break;
+                        case 'expired_token':
+                        case 'access_denied':
+                            throw new Error(`OAuth device flow failed: ${body.error_description || body.error}`);
+                        default:
+                            throw new Error(`OAuth device flow error: ${body.error_description || body.error}`);
+                    }
+                    break;
+                default:
+                    throw new Error(`OAuth device flow unexpected status ${statusCode}`);
             }
 
             await new Promise((resolve) => setTimeout(resolve, delay * 1000));
         }
     }
 
+    // Password-based authentication to get API token. Used as fallback if OAuth device flow is unavailable. i.E. readeck versions < 0.22
     async getToken(username: string, password: string): Promise<string> {
         const tokenResponse = await requestUrl({
             url: `${this.settings.apiUrl}/api/auth`,

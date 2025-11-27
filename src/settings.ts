@@ -12,6 +12,8 @@ export class RDSettingTab extends PluginSettingTab {
 
 	display(): void {
 		const { containerEl } = this;
+		const client_name = "Obsidian Readeck Importer";
+
 
 		containerEl.empty();
 
@@ -19,7 +21,7 @@ export class RDSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('API URL')
-			.setDesc('URL of Readeck instance (without trailing "/")')
+			.setDesc('URL of Readeck instance (without trailing "/"). E.g. https://readeck.domain.tld')
 			.addText(text => text
 				.setPlaceholder('Enter your API URL')
 				.setValue(this.plugin.settings.apiUrl)
@@ -36,7 +38,7 @@ export class RDSettingTab extends PluginSettingTab {
 			.addButton((btn) => {
 				loginButton = btn;
 				btn
-					.setButtonText(loggedIn ? `Logged in as ${this.plugin.settings.username}` : 'Login')
+					.setButtonText(loggedIn ? `Registered "${client_name}" application` : 'Login')
 					.setDisabled(loggedIn)
 					.setCta()
 					.onClick(async () => {
@@ -44,30 +46,32 @@ export class RDSettingTab extends PluginSettingTab {
 						loginButton.setDisabled(true);
 						let cancelled = false;
 						try {
-							const device = await this.plugin.api.startDeviceCodeFlow();
-							const modal = new DeviceCodeModal(this.app, device, () => { cancelled = true; });
-							modal.open();
+							// Step 1: Start oAuth device authorization
+							const oauthClient = await this.plugin.api.createoAuthClient(client_name);
+							
+							// Step 2: Show modal with user code and verification URL
+            				const deviceAuth = await this.plugin.api.authorizeDevice(oauthClient.client_id);
+							const deviceCodeModal = new DeviceCodeModal(this.app, deviceAuth, () => { cancelled = true; });
+							deviceCodeModal.open();
 
-							const token = await this.plugin.api.pollDeviceToken(device.device_code, device.interval ?? 5);
+							// Step 3: Poll for token
+							const acessTokenResp = await this.plugin.api.pollDeviceToken(oauthClient.client_id, deviceAuth.device_code, deviceAuth.interval, deviceAuth.expires_in);
 							if (cancelled) {
 								loginButton.setDisabled(false);
 								return;
 							}
 
 							// update values
-							this.plugin.settings.apiToken = token;
-							this.plugin.settings.username = 'OAuth';
+							this.plugin.settings.apiToken = acessTokenResp.access_token;
 							await this.plugin.saveSettings();
 
 							// update ui
-							loginButton.setButtonText(`Logged in as ${this.plugin.settings.username}`);
+							loginButton.setButtonText(`Registered "${client_name}" application`);
 							loginButton.setDisabled(true);
 							logoutButton.setDisabled(false);
-							modal.close();
-							new Notice('Logged in via OAuth');
+							deviceCodeModal.close();
 						} catch (err) {
-							// Failed to use OAuth device flow, fallback to password modal
-							console.warn('OAuth device flow not available or failed, falling back to password login', err);
+							new Notice('OAuth device flow not available or failed, attempting password login');
 							new LoginModal(this.app, (username, password) => {
 								this.plugin.api.getToken(username, password)
 									.then(async (token) => {
