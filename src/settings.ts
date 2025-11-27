@@ -116,6 +116,15 @@ export class RDSettingTab extends PluginSettingTab {
 			});
 
 		new Setting(containerEl)
+			.setName('Sync on startup')
+			.setDesc('Sync bookmarks automatically when Obsidian starts')
+			.addToggle(toggle => toggle.setValue(this.plugin.settings.autoSyncOnStartup)
+				.onChange(async (value) => {
+					this.plugin.settings.autoSyncOnStartup = value;
+					await this.plugin.saveData(this.plugin.settings);
+				}));
+
+		new Setting(containerEl)
 			.setName('Overwrite if it already exists')
 			.setDesc('Overwrite the note if the bookmark already exists. Warning: the note will be overwritten')
 			.addToggle(toggle => toggle.setValue(this.plugin.settings.overwrite)
