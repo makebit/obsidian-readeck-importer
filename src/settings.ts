@@ -78,7 +78,6 @@ export class RDSettingTab extends PluginSettingTab {
 						logoutButton.setDisabled(true);
 					})
 			});
-
 		new Setting(containerEl)
 			.setName('Folder')
 			.setDesc('The folder where to save the notes')
@@ -123,7 +122,7 @@ export class RDSettingTab extends PluginSettingTab {
 					this.plugin.settings.overwrite = value;
 					await this.plugin.saveData(this.plugin.settings);
 				}));
-		
+
 		new Setting(containerEl)
 			.setName('Delete')
 			.setDesc('Delete the note if the bookmark was deleted')
@@ -150,6 +149,16 @@ export class RDSettingTab extends PluginSettingTab {
 						this.plugin.settings.mode = value;
 						await this.plugin.saveData(this.plugin.settings);
 					})
+			new Setting(containerEl)
+					.setName('Export labels as tags')
+					.setDesc('Replace "labels" with "tags" in frontmatter to match Obsidian tags')
+			    .addToggle(toggle => toggle
+			        .setValue(this.plugin.settings.useTagsInsteadOfLabels)
+			        .onChange(async (value) => {
+			            this.plugin.settings.useTagsInsteadOfLabels = value;
+			            await this.plugin.saveSettings();
+			        })
+						);
 			});
 	}
 }

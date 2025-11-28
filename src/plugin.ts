@@ -46,6 +46,7 @@ export default class RDPlugin extends Plugin {
 	* 3. Create/update markdown notes and save images
 	* 4. Delete removed bookmarks if setting enabled
 	* 5. Update last sync time
+	* 6. Rename labels to tags, if activated
 	*/
 	async getReadeckData() {
 		const { lastSyncAt } = this.settings;
@@ -95,7 +96,7 @@ export default class RDPlugin extends Plugin {
 		} else if (this.settings.mode == "annotations") {
 			get.annotations = true;
 		}
-		
+
 		// Initialize bookmarks data structure (a map of bookmark ID to its data)
 		const toUpdateIds = bookmarksStatus.filter(b => b.type === 'update').map(b => b.id);
 		const bookmarksData = new Map<string, BookmarkData>();
@@ -119,7 +120,7 @@ export default class RDPlugin extends Plugin {
 				}
 			}
 		}
-				
+
 		// Process each bookmark
 		for (const [id, bookmark] of bookmarksData.entries()) {
 			// Create markdown note
@@ -149,7 +150,7 @@ export default class RDPlugin extends Plugin {
 				await this.deleteFolder(id, bookmarkFolderPath, true);
 			}
 		}
-		
+
 		// Update last sync time
 		this.settings.lastSyncAt = new Date().toLocaleString();
 		await this.saveSettings()
@@ -184,28 +185,42 @@ export default class RDPlugin extends Plugin {
 	}
 
 	async parseBookmarksMP(bookmarksData: Map<string, BookmarkData>, bookmarksMPData: any): Promise<boolean> {
-		const partsData: MultipartPart[] = await Utils.parseMultipart(bookmarksMPData);
+	    const partsData: MultipartPart[] = await Utils.parseMultipart(bookmarksMPData);
 
-		for (const partData of partsData) {
-			const mediaType = partData.mediaType || '';
-			const bookmarkId = partData.headers.get('Bookmark-Id') || '';	
-			const bookmark: BookmarkData = bookmarksData.get(bookmarkId)!;
-			if (mediaType == 'text/markdown') {
-				const markdownContent = await partData.text();
-				bookmark.text = markdownContent;
-			} else if (mediaType.includes('image')) {
-				bookmark.images.push({
-					filename: partData.filename,
-					content: partData.body,
-				});
-			} else if (mediaType.includes('json')) {
-				const jsonText = await partData.text();
-				bookmark.json = JSON.parse(jsonText);
-			} else {
-				console.warn(`Unknown content type: ${partData.mediaType}`);
-			}
-		}
-		return true;
+	    for (const partData of partsData) {
+	        const mediaType = partData.mediaType || '';
+	        const bookmarkId = partData.headers.get('Bookmark-Id') || '';
+	        const bookmark: BookmarkData = bookmarksData.get(bookmarkId)!;
+
+	        if (mediaType == 'text/markdown') {
+	            let markdownContent = await partData.text();
+
+	            // Labels durch Tags ersetzen, falls Option aktiviert
+	            if (this.settings.useTagsInsteadOfLabels) {
+	                markdownContent = this.replaceLabelWithTags(markdownContent);
+	            }
+
+	            bookmark.text = markdownContent;
+	        } else if (mediaType.includes('image')) {
+	            bookmark.images.push({
+	                filename: partData.filename,
+	                content: partData.body,
+	            });
+	        } else if (mediaType.includes('json')) {
+	            const jsonText = await partData.text();
+	            bookmark.json = JSON.parse(jsonText);
+	        } else {
+	            console.warn(`Unknown content type: ${partData.mediaType}`);
+	        }
+	    }
+	    return true;
+	}
+
+	/**
+	 * replace "labels:" with "tags:" in YAML-frontmatter
+	 */
+	private replaceLabelWithTags(content: string): string {
+	    return content.replace(/^(\s*)labels:/gm, '$1tags:');
 	}
 
 	async addBookmarkAnnotations(bookmark: any, bookmarkMetadata: any, annotationsData: any) {

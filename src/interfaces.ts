@@ -7,6 +7,7 @@ export interface ReadeckPluginSettings {
 	overwrite: boolean;
 	delete: boolean;
 	mode: string;
+  useTagsInsteadOfLabels: boolean,
 }
 
 export interface Response<T> {
@@ -53,4 +54,5 @@ export const DEFAULT_SETTINGS: ReadeckPluginSettings = {
 	overwrite: false,
 	delete: false,
 	mode: "text",
+  useTagsInsteadOfLabels: false,
 }
