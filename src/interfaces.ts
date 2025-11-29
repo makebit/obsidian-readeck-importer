@@ -8,6 +8,9 @@ export interface ReadeckPluginSettings {
 	delete: boolean;
 	mode: string;
   useTagsInsteadOfLabels: boolean,
+	useDateTimeInFilename: boolean;
+	dateTimeFormat: string;
+	dateTimePosition: 'prefix' | 'suffix';
 }
 
 export interface Response<T> {
@@ -55,4 +58,7 @@ export const DEFAULT_SETTINGS: ReadeckPluginSettings = {
 	delete: false,
 	mode: "text",
   useTagsInsteadOfLabels: false,
+	useDateTimeInFilename: false,
+	dateTimeFormat: 'YYMMDD',
+	dateTimePosition: 'prefix',	
 }
