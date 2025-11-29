@@ -11,7 +11,7 @@ export default class RDPlugin extends Plugin {
 	api: ReadeckApi;
 	bookmarkFolderPath: string;
 	bookmarkImagesFolderPath: string;
-
+  private bookmarkDetailsCache = new Map<string, any>();
 	async onload() {
 		console.log('Readeck Importer: Loading plugin v' + this.manifest.version);
 
@@ -95,7 +95,7 @@ export default class RDPlugin extends Plugin {
 		} else if (this.settings.mode == "annotations") {
 			get.annotations = true;
 		}
-		
+
 		// Initialize bookmarks data structure (a map of bookmark ID to its data)
 		const toUpdateIds = bookmarksStatus.filter(b => b.type === 'update').map(b => b.id);
 		const bookmarksData = new Map<string, BookmarkData>();
@@ -119,7 +119,7 @@ export default class RDPlugin extends Plugin {
 				}
 			}
 		}
-				
+
 		// Process each bookmark
 		for (const [id, bookmark] of bookmarksData.entries()) {
 			// Create markdown note
@@ -149,7 +149,7 @@ export default class RDPlugin extends Plugin {
 				await this.deleteFolder(id, bookmarkFolderPath, true);
 			}
 		}
-		
+
 		// Update last sync time
 		this.settings.lastSyncAt = new Date().toLocaleString();
 		await this.saveSettings()
@@ -174,21 +174,40 @@ export default class RDPlugin extends Plugin {
 	}
 
 	async addBookmarkMD(bookmarkId: string, bookmarkTitle: string, bookmarkContent: string | null, bookmarkAnnotations: Annotation[], bookmarkFolderPath?: string) {
-		const filePath = `${bookmarkFolderPath}/${Utils.sanitizeFileName(bookmarkTitle)}.md`;
-		let noteContent = bookmarkContent || '';
-		if (bookmarkAnnotations.length > 0) {
-			const annotations = this.buildAnnotations(bookmarkId, bookmarkAnnotations);
-			noteContent += `\n\n${annotations}`;
-		}
-		await this.createFile(bookmarkTitle, filePath, noteContent);
+	    let fileName = Utils.sanitizeFileName(bookmarkTitle);
+	    if (this.settings.useDateTimeInFilename) {
+	        const details = await this.getBookmarkDetailsCached(bookmarkId);
+	        const created = new Date(details.created);
+	        const formattedDate = created.toLocaleDateString('de-DE', {
+	            year: '2-digit',
+	            month: '2-digit',
+	            day: '2-digit'
+	        }).replace(/\./g, '');
+
+	        if (this.settings.dateTimePosition === 'prefix') {
+	            fileName = `${formattedDate}-${fileName}`;
+	        } else {
+	            fileName = `${fileName}-${formattedDate}`;
+	        }
+	    }
+
+	    const filePath = `${this.settings.folder}/${fileName}.md`;
+
+	    let noteContent = bookmarkContent || '';
+	    if (bookmarkAnnotations.length > 0) {
+	        const annotations = this.buildAnnotations(bookmarkId, bookmarkAnnotations);
+	        noteContent += `\n\n${annotations}`;
+	    }
+	    await this.createFile(bookmarkTitle, filePath, noteContent);
 	}
+
 
 	async parseBookmarksMP(bookmarksData: Map<string, BookmarkData>, bookmarksMPData: any): Promise<boolean> {
 		const partsData: MultipartPart[] = await Utils.parseMultipart(bookmarksMPData);
 
 		for (const partData of partsData) {
 			const mediaType = partData.mediaType || '';
-			const bookmarkId = partData.headers.get('Bookmark-Id') || '';	
+			const bookmarkId = partData.headers.get('Bookmark-Id') || '';
 			const bookmark: BookmarkData = bookmarksData.get(bookmarkId)!;
 			if (mediaType == 'text/markdown') {
 				const markdownContent = await partData.text();
@@ -280,4 +299,14 @@ export default class RDPlugin extends Plugin {
 	async saveSettings() {
 		await this.saveData(this.settings);
 	}
+	async getBookmarkDetailsCached(bookmarkId: string): Promise<any> {
+	    if (this.bookmarkDetailsCache.has(bookmarkId)) {
+	        return this.bookmarkDetailsCache.get(bookmarkId);
+	    }
+
+	    const details = await this.api.getBookmarkDetails(bookmarkId);
+	    this.bookmarkDetailsCache.set(bookmarkId, details);
+	    return details;
+	}
+
 }

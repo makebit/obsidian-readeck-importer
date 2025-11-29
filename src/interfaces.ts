@@ -7,6 +7,9 @@ export interface ReadeckPluginSettings {
 	overwrite: boolean;
 	delete: boolean;
 	mode: string;
+	useDateTimeInFilename: boolean;
+	dateTimeFormat: string;
+	dateTimePosition: 'prefix' | 'suffix';
 }
 
 export interface Response<T> {
@@ -53,4 +56,7 @@ export const DEFAULT_SETTINGS: ReadeckPluginSettings = {
 	overwrite: false,
 	delete: false,
 	mode: "text",
+	useDateTimeInFilename: false,
+	dateTimeFormat: 'YYMMDD',
+	dateTimePosition: 'prefix',	
 }

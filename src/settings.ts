@@ -123,7 +123,7 @@ export class RDSettingTab extends PluginSettingTab {
 					this.plugin.settings.overwrite = value;
 					await this.plugin.saveData(this.plugin.settings);
 				}));
-		
+
 		new Setting(containerEl)
 			.setName('Delete')
 			.setDesc('Delete the note if the bookmark was deleted')
@@ -151,6 +151,40 @@ export class RDSettingTab extends PluginSettingTab {
 						await this.plugin.saveData(this.plugin.settings);
 					})
 			});
+			new Setting(containerEl)
+			    .setName('Use date-time in filename')
+			    .setDesc('Add date-time as prefix or suffix to filename')
+			    .addToggle(toggle => toggle
+			        .setValue(this.plugin.settings.useDateTimeInFilename)
+			        .onChange(async (value) => {
+			            this.plugin.settings.useDateTimeInFilename = value;
+			            await this.plugin.saveSettings();
+			        })
+			    );
+
+			new Setting(containerEl)
+			    .setName('Date-time format')
+			    .setDesc('Format for the date-time string (e.g. YYMMDD, YYYY-MM-DD)')
+			    .addText(text => text
+			        .setValue(this.plugin.settings.dateTimeFormat)
+			        .onChange(async (value) => {
+			            this.plugin.settings.dateTimeFormat = value;
+			            await this.plugin.saveSettings();
+			        })
+			    );
+
+			new Setting(containerEl)
+			    .setName('Date-time position')
+			    .setDesc('Where to place the date-time in the filename')
+			    .addDropdown(dropdown => dropdown
+			        .addOption('prefix', 'Prefix')
+			        .addOption('suffix', 'Suffix')
+			        .setValue(this.plugin.settings.dateTimePosition)
+			        .onChange(async (value) => {
+			            this.plugin.settings.dateTimePosition = value as 'prefix' | 'suffix';
+			            await this.plugin.saveSettings();
+			        })
+			    );			
 	}
 }
 
