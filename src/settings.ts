@@ -193,7 +193,28 @@ export class RDSettingTab extends PluginSettingTab {
 			            this.plugin.settings.dateTimePosition = value as 'prefix' | 'suffix';
 			            await this.plugin.saveSettings();
 			        })
-			    );			
+			    );
+			new Setting(containerEl)
+			    .setName('Enable archiving')
+			    .setDesc('Archive bookmarks marked as archived')
+					.addToggle(toggle => toggle
+							.setValue(this.plugin.settings.archiveEnabled)
+					    .onChange(async (value) => {
+					    		this.plugin.settings.archiveEnabled = value;
+					        await this.plugin.saveSettings();
+	        		})
+					);			
+
+				new Setting(containerEl)
+			    .setName('Archive folder')
+			    .setDesc('Folder for archived bookmarks (relative to vault root)')
+			    .addText(text => text
+			        .setValue(this.plugin.settings.archiveFolder)
+			        .onChange(async (value) => {
+			            this.plugin.settings.archiveFolder = value;
+			            await this.plugin.saveSettings();
+			        })
+			    );
 	}
 }
 

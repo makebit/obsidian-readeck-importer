@@ -11,6 +11,8 @@ export interface ReadeckPluginSettings {
 	useDateTimeInFilename: boolean;
 	dateTimeFormat: string;
 	dateTimePosition: 'prefix' | 'suffix';
+  archiveEnabled: boolean;
+	archiveFolder: string;
 }
 
 export interface Response<T> {
@@ -60,5 +62,7 @@ export const DEFAULT_SETTINGS: ReadeckPluginSettings = {
   useTagsInsteadOfLabels: false,
 	useDateTimeInFilename: false,
 	dateTimeFormat: 'YYMMDD',
-	dateTimePosition: 'prefix',	
+	dateTimePosition: 'prefix',
+	archiveEnabled: false,
+  archiveFolder: 'Readeck/Archiv',
 }
