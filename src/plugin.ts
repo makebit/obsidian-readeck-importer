@@ -17,6 +17,9 @@ export default class RDPlugin extends Plugin {
 
         await this.loadSettings();
 
+        // FIX: API-Instanz nach Settings-Laden initialisieren
+        this.initializeApi();
+
         this.addSettingTab(new RDSettingTab(this.app, this));
 
         this.addCommand({
@@ -36,11 +39,13 @@ export default class RDPlugin extends Plugin {
             },
         });
 
+        // FIX: Archive-Ordner später erstellen, nicht in onload
+        // await this.ensureArchiveFolder(); // <-- Entfernt, wird bei Bedarf erstellt
+    }
+
+    // NEU: Methode zur API-Initialisierung
+    initializeApi() {
         this.api = new ReadeckApi(this.settings);
-        const archiveFolder = this.app.vault.getAbstractFileByPath(this.settings.archiveFolder);
-        if (!archiveFolder) {
-            await this.app.vault.createFolder(this.settings.archiveFolder);
-        }
     }
 
     /* Fetch Readeck data and process bookmarks */
@@ -69,6 +74,11 @@ export default class RDPlugin extends Plugin {
         const bookmarksFolder = this.app.vault.getAbstractFileByPath(this.settings.folder);
         if (!bookmarksFolder) {
             await this.app.vault.createFolder(this.settings.folder);
+        }
+
+        // FIX: Archive-Ordner sicherstellen, wenn Archivierung aktiviert ist
+        if (this.settings.archiveEnabled) {
+            await this.ensureArchiveFolder();
         }
 
         // Determine what data to fetch based on mode
@@ -153,6 +163,9 @@ export default class RDPlugin extends Plugin {
             }
         }
 
+        // FIX: Cache leeren nach Sync
+        this.bookmarkDetailsCache.clear();
+
         // Update last sync time
         this.settings.lastSyncAt = new Date().toLocaleString();
         await this.saveSettings();
@@ -176,7 +189,12 @@ export default class RDPlugin extends Plugin {
         return multipart;
     }
 
+    /**
+     * Creates or updates a bookmark markdown file and handles archiving based on the bookmark's status.
+     * If the file already exists, it checks for changes in the archive status and moves the file accordingly.
+     */
     async addBookmarkMD(bookmarkId: string, bookmarkTitle: string, bookmarkContent: string | null, bookmarkAnnotations: Annotation[], bookmarkFolderPath?: string) {
+        // Generate filename with optional date prefix/suffix
         let fileName = Utils.sanitizeFileName(bookmarkTitle);
         if (this.settings.useDateTimeInFilename) {
             const details = await this.getBookmarkDetailsCached(bookmarkId);
@@ -190,25 +208,77 @@ export default class RDPlugin extends Plugin {
             }
         }
 
+        // Define paths for main and archive folders
         const filePath = `${bookmarkFolderPath || this.settings.folder}/${fileName}.md`;
+        const archivePath = `${this.settings.archiveFolder}/${fileName}.md`;
 
+        // Get bookmark details to check archive status
+        const details = await this.getBookmarkDetailsCached(bookmarkId);
+        const isArchived = details.is_archived;
+
+        // Check if file exists in main or archive folder
+        const fileInMain = this.app.vault.getAbstractFileByPath(filePath);
+        const fileInArchive = this.app.vault.getAbstractFileByPath(archivePath);
+
+        // FIX: Verbesserte Logik für Datei-Bewegung
+        if (this.settings.archiveEnabled) {
+            if (isArchived) {
+                // Bookmark sollte archiviert sein
+                if (fileInMain) {
+                    // Datei ist im Hauptordner, verschiebe zu Archiv
+                    await this.ensureArchiveFolder();
+                    const moved = await this.moveFileToArchive(filePath, archivePath);
+                    if (moved) {
+                        new Notice(`Archived: ${bookmarkTitle}`);
+                    }
+                    return; // Keine weitere Verarbeitung nötig
+                } else if (fileInArchive) {
+                    // Datei ist bereits im Archiv, nichts zu tun
+                    return;
+                }
+                // Datei existiert noch nicht, wird später im Archiv erstellt
+            } else {
+                // Bookmark sollte NICHT archiviert sein
+                if (fileInArchive) {
+                    // Datei ist im Archiv, verschiebe zurück zum Hauptordner
+                    const moved = await this.moveFileToArchive(archivePath, filePath);
+                    if (moved) {
+                        new Notice(`Unarchived: ${bookmarkTitle}`);
+                    }
+                    return; // Keine weitere Verarbeitung nötig
+                } else if (fileInMain) {
+                    // Datei ist bereits im Hauptordner, nichts zu tun
+                    return;
+                }
+                // Datei existiert noch nicht, wird später im Hauptordner erstellt
+            }
+        } else {
+            // Archivierung deaktiviert
+            if (fileInMain) {
+                return; // Datei existiert bereits
+            }
+        }
+
+        // Generate file content
         let noteContent = bookmarkContent || '';
         if (bookmarkAnnotations.length > 0) {
             const annotations = this.buildAnnotations(bookmarkId, bookmarkAnnotations);
             noteContent += `\n\n${annotations}`;
         }
 
-        await this.createFile(bookmarkTitle, filePath, noteContent);
+        // FIX: Datei im richtigen Ordner erstellen (Archiv oder Hauptordner)
+        const targetPath = (this.settings.archiveEnabled && isArchived) ? archivePath : filePath;
 
-        // Archivierung nur, wenn aktiviert und der Artikel archiviert ist
-        if (this.settings.archiveEnabled) {
-            const details = await this.getBookmarkDetailsCached(bookmarkId);
-            if (details.is_archived) {
-                await this.ensureArchiveFolder();
-                await this.moveFileToArchive(filePath, fileName + '.md');
-            }
+        if (this.settings.archiveEnabled && isArchived) {
+            await this.ensureArchiveFolder();
         }
+
+        await this.createFile(bookmarkTitle, targetPath, noteContent);
     }
+
+    /**
+     * Ensures the archive folder exists, creates it if necessary.
+     */
     async ensureArchiveFolder(): Promise<void> {
         const archiveFolder = this.app.vault.getAbstractFileByPath(this.settings.archiveFolder);
         if (!archiveFolder) {
@@ -219,7 +289,6 @@ export default class RDPlugin extends Plugin {
             }
         }
     }
-
 
     async parseBookmarksMP(bookmarksData: Map<string, BookmarkData>, bookmarksMPData: any): Promise<boolean> {
         const partsData: MultipartPart[] = await Utils.parseMultipart(bookmarksMPData);
@@ -254,26 +323,26 @@ export default class RDPlugin extends Plugin {
         return content.replace(/^(\s*)labels:/gm, '$1tags:');
     }
 
-		/**
-		* Format a date according to a given format string.
-		* Supported placeholders: YYYY, YY, MM, DD, HH, mm
-		*/
-		private formatDate(date: Date, format: string): string {
-    		const year = date.getFullYear().toString();
-				const month = (date.getMonth() + 1).toString().padStart(2, '0');
-				const day = date.getDate().toString().padStart(2, '0');
-				const hour = date.getHours().toString().padStart(2, '0');
-				const minute = date.getMinutes().toString().padStart(2, '0');
-				const shortYear = year.slice(-2);
+    /**
+     * Format a date according to a given format string.
+     * Supported placeholders: YYYY, YY, MM, DD, HH, mm
+     */
+    private formatDate(date: Date, format: string): string {
+        const year = date.getFullYear().toString();
+        const month = (date.getMonth() + 1).toString().padStart(2, '0');
+        const day = date.getDate().toString().padStart(2, '0');
+        const hour = date.getHours().toString().padStart(2, '0');
+        const minute = date.getMinutes().toString().padStart(2, '0');
+        const shortYear = year.slice(-2);
 
-				return format
-        		.replace('YYYY', year)
-						.replace('YY', shortYear)
-						.replace('MM', month)
-						.replace('DD', day)
-						.replace('HH', hour)
-						.replace('mm', minute);
-		}
+        return format
+            .replace('YYYY', year)
+            .replace('YY', shortYear)
+            .replace('MM', month)
+            .replace('DD', day)
+            .replace('HH', hour)
+            .replace('mm', minute);
+    }
 
     async addBookmarkAnnotations(bookmark: any, bookmarkMeta: any, annotationsData: any) {
         const filePath = `${this.settings.folder}/${Utils.sanitizeFileName(bookmark.title)}.md`;
@@ -338,6 +407,8 @@ export default class RDPlugin extends Plugin {
 
     async saveSettings() {
         await this.saveData(this.settings);
+        // NEU: API neu initialisieren wenn Settings gespeichert werden
+        this.initializeApi();
     }
 
     async getBookmarkDetailsCached(bookmarkId: string): Promise<any> {
@@ -350,15 +421,17 @@ export default class RDPlugin extends Plugin {
         return details;
     }
 
-    async moveFileToArchive(filePath: string, fileName: string): Promise<boolean> {
-        const archivePath = `${this.settings.archiveFolder}/${fileName}`;
-        const file = this.app.vault.getAbstractFileByPath(filePath);
-        if (file && file instanceof TFile) {
+    /**
+     * Moves a file from source to target path.
+     */
+    async moveFileToArchive(sourcePath: string, targetPath: string): Promise<boolean> {
+        const sourceFile = this.app.vault.getAbstractFileByPath(sourcePath);
+        if (sourceFile && sourceFile instanceof TFile) {
             try {
-                await this.app.vault.rename(file, archivePath);
+                await this.app.vault.rename(sourceFile, targetPath);
                 return true;
             } catch (error) {
-                new Notice(`Error moving file to archive: ${error}`);
+                new Notice(`Error moving file: ${error}`);
                 return false;
             }
         }
