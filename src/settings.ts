@@ -78,7 +78,6 @@ export class RDSettingTab extends PluginSettingTab {
 						logoutButton.setDisabled(true);
 					})
 			});
-
 		new Setting(containerEl)
 			.setName('Folder')
 			.setDesc('The folder where to save the notes')
@@ -123,7 +122,7 @@ export class RDSettingTab extends PluginSettingTab {
 					this.plugin.settings.overwrite = value;
 					await this.plugin.saveData(this.plugin.settings);
 				}));
-		
+
 		new Setting(containerEl)
 			.setName('Delete')
 			.setDesc('Delete the note if the bookmark was deleted')
@@ -150,7 +149,72 @@ export class RDSettingTab extends PluginSettingTab {
 						this.plugin.settings.mode = value;
 						await this.plugin.saveData(this.plugin.settings);
 					})
+			new Setting(containerEl)
+					.setName('Export labels as tags')
+					.setDesc('Replace "labels" with "tags" in frontmatter to match Obsidian tags')
+			    .addToggle(toggle => toggle
+			        .setValue(this.plugin.settings.useTagsInsteadOfLabels)
+			        .onChange(async (value) => {
+			            this.plugin.settings.useTagsInsteadOfLabels = value;
+			            await this.plugin.saveSettings();
+			        })
+						);
 			});
+			new Setting(containerEl)
+			    .setName('Use date-time in filename')
+			    .setDesc('Add date-time as prefix or suffix to filename')
+			    .addToggle(toggle => toggle
+			        .setValue(this.plugin.settings.useDateTimeInFilename)
+			        .onChange(async (value) => {
+			            this.plugin.settings.useDateTimeInFilename = value;
+			            await this.plugin.saveSettings();
+			        })
+			    );
+
+			new Setting(containerEl)
+			    .setName('Date-time format')
+			    .setDesc('Format for the date-time string (e.g. YYMMDD, YYYY-MM-DD)')
+			    .addText(text => text
+			        .setValue(this.plugin.settings.dateTimeFormat)
+			        .onChange(async (value) => {
+			            this.plugin.settings.dateTimeFormat = value;
+			            await this.plugin.saveSettings();
+			        })
+			    );
+
+			new Setting(containerEl)
+			    .setName('Date-time position')
+			    .setDesc('Where to place the date-time in the filename')
+			    .addDropdown(dropdown => dropdown
+			        .addOption('prefix', 'Prefix')
+			        .addOption('suffix', 'Suffix')
+			        .setValue(this.plugin.settings.dateTimePosition)
+			        .onChange(async (value) => {
+			            this.plugin.settings.dateTimePosition = value as 'prefix' | 'suffix';
+			            await this.plugin.saveSettings();
+			        })
+			    );
+			new Setting(containerEl)
+			    .setName('Enable archiving')
+			    .setDesc('Archive bookmarks marked as archived')
+					.addToggle(toggle => toggle
+							.setValue(this.plugin.settings.archiveEnabled)
+					    .onChange(async (value) => {
+					    		this.plugin.settings.archiveEnabled = value;
+					        await this.plugin.saveSettings();
+	        		})
+					);			
+
+				new Setting(containerEl)
+			    .setName('Archive folder')
+			    .setDesc('Folder for archived bookmarks (relative to vault root)')
+			    .addText(text => text
+			        .setValue(this.plugin.settings.archiveFolder)
+			        .onChange(async (value) => {
+			            this.plugin.settings.archiveFolder = value;
+			            await this.plugin.saveSettings();
+			        })
+			    );
 	}
 }
 

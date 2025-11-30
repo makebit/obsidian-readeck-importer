@@ -7,6 +7,12 @@ export interface ReadeckPluginSettings {
 	overwrite: boolean;
 	delete: boolean;
 	mode: string;
+  useTagsInsteadOfLabels: boolean,
+	useDateTimeInFilename: boolean;
+	dateTimeFormat: string;
+	dateTimePosition: 'prefix' | 'suffix';
+  archiveEnabled: boolean;
+	archiveFolder: string;
 }
 
 export interface Response<T> {
@@ -53,4 +59,10 @@ export const DEFAULT_SETTINGS: ReadeckPluginSettings = {
 	overwrite: false,
 	delete: false,
 	mode: "text",
+  useTagsInsteadOfLabels: false,
+	useDateTimeInFilename: false,
+	dateTimeFormat: 'YYMMDD',
+	dateTimePosition: 'prefix',
+	archiveEnabled: false,
+  archiveFolder: 'Readeck/Archiv',
 }

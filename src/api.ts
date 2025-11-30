@@ -65,6 +65,17 @@ export class ReadeckApi {
         const annotations = await annotationResponse.json;
         return annotations;
     }
+    async getBookmarkDetails(bookmarkId: string): Promise<any> {
+        const response = await requestUrl({
+            url: `${this.settings.apiUrl}/api/bookmarks/${bookmarkId}/`,
+            method: 'GET',
+            headers: {
+                'accept': 'application/json',
+                'Authorization': `Bearer ${this.settings.apiToken}`
+            }
+        });
+        return response.json;
+    }
 
     async getToken(username: string, password: string): Promise<string> {
         const tokenResponse = await requestUrl({
