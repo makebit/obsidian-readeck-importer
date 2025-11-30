@@ -24,8 +24,8 @@ export class ReadeckApi {
         });
 
         return {
-			items: await response.json
-		};
+            items: await response.json() // <-- FIX: () hinzugefügt
+        };
     }
 
     async getBookmarks(
@@ -62,9 +62,10 @@ export class ReadeckApi {
                 'Authorization': `Bearer ${this.settings.apiToken}`
             }
         });
-        const annotations = await annotationResponse.json;
+        const annotations = await annotationResponse.json(); // <-- FIX: () hinzugefügt
         return annotations;
     }
+
     async getBookmarkDetails(bookmarkId: string): Promise<any> {
         const response = await requestUrl({
             url: `${this.settings.apiUrl}/api/bookmarks/${bookmarkId}/`,
@@ -74,8 +75,8 @@ export class ReadeckApi {
                 'Authorization': `Bearer ${this.settings.apiToken}`
             }
         });
-        return response.json;
-    }    
+        return response.json(); // <-- FIX: () hinzugefügt
+    }
 
     async getToken(username: string, password: string): Promise<string> {
         const tokenResponse = await requestUrl({
@@ -92,7 +93,7 @@ export class ReadeckApi {
                 roles: ["scoped_bookmarks_r"],
             }),
         });
-        const token: string = await tokenResponse.json.token;
-        return token;
+        const responseData = await tokenResponse.json(); // <-- FIX: () hinzugefügt und in Variable gespeichert
+        return responseData.token; // <-- FIX: korrekte Eigenschaft
     }
 }

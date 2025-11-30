@@ -17,7 +17,7 @@ export default class RDPlugin extends Plugin {
 
         await this.loadSettings();
 
-        // FIX: API-Instanz nach Settings-Laden initialisieren
+        // Initialize API-Instanz after settings
         this.initializeApi();
 
         this.addSettingTab(new RDSettingTab(this.app, this));
@@ -39,11 +39,9 @@ export default class RDPlugin extends Plugin {
             },
         });
 
-        // FIX: Archive-Ordner später erstellen, nicht in onload
-        // await this.ensureArchiveFolder(); // <-- Entfernt, wird bei Bedarf erstellt
     }
 
-    // NEU: Methode zur API-Initialisierung
+    // Initialize API
     initializeApi() {
         this.api = new ReadeckApi(this.settings);
     }
@@ -76,7 +74,7 @@ export default class RDPlugin extends Plugin {
             await this.app.vault.createFolder(this.settings.folder);
         }
 
-        // FIX: Archive-Ordner sicherstellen, wenn Archivierung aktiviert ist
+        // Ensure archive folder exists, if enabled
         if (this.settings.archiveEnabled) {
             await this.ensureArchiveFolder();
         }
@@ -133,11 +131,9 @@ export default class RDPlugin extends Plugin {
             if (bookmark.text || bookmark.annotations.length > 0) {
                 let bookmarkFolderPath = this.settings.folder;
                 if (!this.settings.useDateTimeInFilename) {
-                    // Ordner mit ID nur, wenn kein Datum im Dateinamen
                     bookmarkFolderPath = `${this.settings.folder}/${id}`;
                     await this.createFolderIfNotExists(id, bookmarkFolderPath);
                 } else {
-                    // Im Hauptordner, kein ID-Ordner
                     await this.createFolderIfNotExists(id, this.settings.folder);
                 }
                 await this.addBookmarkMD(id, bookmark.json.title, bookmark.text, bookmark.annotations, bookmarkFolderPath);
@@ -163,7 +159,7 @@ export default class RDPlugin extends Plugin {
             }
         }
 
-        // FIX: Cache leeren nach Sync
+        // Cache leeren nach Sync
         this.bookmarkDetailsCache.clear();
 
         // Update last sync time
@@ -220,42 +216,32 @@ export default class RDPlugin extends Plugin {
         const fileInMain = this.app.vault.getAbstractFileByPath(filePath);
         const fileInArchive = this.app.vault.getAbstractFileByPath(archivePath);
 
-        // FIX: Verbesserte Logik für Datei-Bewegung
         if (this.settings.archiveEnabled) {
             if (isArchived) {
-                // Bookmark sollte archiviert sein
                 if (fileInMain) {
-                    // Datei ist im Hauptordner, verschiebe zu Archiv
                     await this.ensureArchiveFolder();
                     const moved = await this.moveFileToArchive(filePath, archivePath);
                     if (moved) {
                         new Notice(`Archived: ${bookmarkTitle}`);
                     }
-                    return; // Keine weitere Verarbeitung nötig
+                    return;
                 } else if (fileInArchive) {
-                    // Datei ist bereits im Archiv, nichts zu tun
                     return;
                 }
-                // Datei existiert noch nicht, wird später im Archiv erstellt
             } else {
-                // Bookmark sollte NICHT archiviert sein
                 if (fileInArchive) {
-                    // Datei ist im Archiv, verschiebe zurück zum Hauptordner
                     const moved = await this.moveFileToArchive(archivePath, filePath);
                     if (moved) {
                         new Notice(`Unarchived: ${bookmarkTitle}`);
                     }
-                    return; // Keine weitere Verarbeitung nötig
+                    return;
                 } else if (fileInMain) {
-                    // Datei ist bereits im Hauptordner, nichts zu tun
                     return;
                 }
-                // Datei existiert noch nicht, wird später im Hauptordner erstellt
             }
         } else {
-            // Archivierung deaktiviert
             if (fileInMain) {
-                return; // Datei existiert bereits
+                return;
             }
         }
 
@@ -266,7 +252,7 @@ export default class RDPlugin extends Plugin {
             noteContent += `\n\n${annotations}`;
         }
 
-        // FIX: Datei im richtigen Ordner erstellen (Archiv oder Hauptordner)
+        // Create file in main folder or archive folder
         const targetPath = (this.settings.archiveEnabled && isArchived) ? archivePath : filePath;
 
         if (this.settings.archiveEnabled && isArchived) {
@@ -407,7 +393,6 @@ export default class RDPlugin extends Plugin {
 
     async saveSettings() {
         await this.saveData(this.settings);
-        // NEU: API neu initialisieren wenn Settings gespeichert werden
         this.initializeApi();
     }
 
