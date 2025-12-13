@@ -37,6 +37,18 @@ export default class RDPlugin extends Plugin {
 		  })
 
 		this.api = new ReadeckApi(this.settings);
+
+		// Auto sync on startup if configured
+		this.app.workspace.onLayoutReady(async () => {
+			if (this.settings.apiToken === "") {
+				return; // Not logged in
+
+			}
+			if (this.settings.autoSyncOnStartup === false) {
+				return;
+			}
+			await this.getReadeckData();
+		})
 	}
 
 	/*
