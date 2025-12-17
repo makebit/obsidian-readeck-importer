@@ -1,5 +1,5 @@
 import { requestUrl } from "obsidian";
-import { Annotation, Response, ReadeckPluginSettings, BookmarkStatus } from "./interfaces";
+import { Annotation, Response, ReadeckPluginSettings, BookmarkStatus, BookmarkDetail } from "./interfaces";
 
 export class ReadeckApi {
     settings: ReadeckPluginSettings;
@@ -64,6 +64,17 @@ export class ReadeckApi {
         });
         const annotations = await annotationResponse.json;
         return annotations;
+    }
+
+    async getBookmarkDetail(bookmarkId: string): Promise<BookmarkDetail> {
+        const response = await requestUrl({
+            url: `${this.settings.apiUrl}/api/bookmarks/${bookmarkId}`,
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${this.settings.apiToken}`
+            }
+        });
+        return response.json;
     }
 
     async getToken(username: string, password: string): Promise<string> {

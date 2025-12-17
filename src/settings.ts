@@ -1,6 +1,7 @@
 import { App, ButtonComponent, Modal, Notice, PluginSettingTab, Setting, TextComponent } from "obsidian";
 
 import ReadeckPlugin from "./plugin";
+import { METADATA_FIELDS } from "./interfaces";
 
 export class RDSettingTab extends PluginSettingTab {
 	plugin: ReadeckPlugin;
@@ -160,6 +161,40 @@ export class RDSettingTab extends PluginSettingTab {
 						await this.plugin.saveData(this.plugin.settings);
 					})
 			});
+
+		// Metadata fields multi-select configuration
+		containerEl.createEl('h3', { text: 'Metadata Sync Settings' });
+
+		new Setting(containerEl)
+			.setName('Metadata fields')
+			.setDesc('Select which metadata fields to sync to the frontmatter of existing bookmarks');
+
+		// Create multi-select field list
+		const metadataFieldsContainer = containerEl.createDiv({ cls: 'metadata-fields-container' });
+		
+		for (const field of METADATA_FIELDS) {
+			new Setting(metadataFieldsContainer)
+				.setName(field.label)
+				.setDesc(field.key)
+				.addToggle(toggle => {
+					toggle
+						.setValue(this.plugin.settings.metadataFields.includes(field.key))
+						.onChange(async (value) => {
+							if (value) {
+								// Add field
+								if (!this.plugin.settings.metadataFields.includes(field.key)) {
+									this.plugin.settings.metadataFields.push(field.key);
+								}
+							} else {
+								// Remove field
+								this.plugin.settings.metadataFields = this.plugin.settings.metadataFields.filter(
+									f => f !== field.key
+								);
+							}
+							await this.plugin.saveSettings();
+						});
+				});
+		}
 	}
 }
 

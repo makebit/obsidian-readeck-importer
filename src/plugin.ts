@@ -36,6 +36,12 @@ export default class RDPlugin extends Plugin {
 			},
 		  })
 
+		this.addCommand({
+			id: 'sync-bookmark-metadata',
+			name: 'Sync bookmark metadata',
+			callback: () => this.syncBookmarkMetadata(),
+		});
+
 		this.api = new ReadeckApi(this.settings);
 
 		// Auto sync on startup if configured
@@ -279,6 +285,121 @@ export default class RDPlugin extends Plugin {
 		} else if (!folder) {
 			if (showNotice) { new Notice(`Readeck importer: Error deleting bookmark ${id}`); }
 		}
+	}
+
+	/**
+	 * Sync metadata of existing bookmarks to Frontmatter
+	 */
+	async syncBookmarkMetadata() {
+		// Check if logged in
+		if (this.settings.apiToken === "") {
+			new Notice('Readeck importer: Please login first');
+			return;
+		}
+
+		// Check if metadata fields are configured
+		if (this.settings.metadataFields.length === 0) {
+			new Notice('Readeck importer: No metadata fields configured');
+			return;
+		}
+
+		// Get bookmarks folder
+		const bookmarksFolder = this.app.vault.getAbstractFileByPath(this.settings.folder);
+		if (!bookmarksFolder || !(bookmarksFolder instanceof TFolder)) {
+			new Notice('Readeck importer: Bookmarks folder not found');
+			return;
+		}
+
+		// Scan bookmarks folder to get all bookmark IDs
+		const bookmarkIds = this.getBookmarkIdsFromFolder(bookmarksFolder);
+		if (bookmarkIds.length === 0) {
+			new Notice('Readeck importer: No bookmarks found to sync metadata');
+			return;
+		}
+
+		new Notice(`Readeck importer: Syncing metadata for ${bookmarkIds.length} bookmarks...`);
+
+		let successCount = 0;
+		let errorCount = 0;
+		let skipCount = 0;
+
+		// Sync metadata for each bookmark
+		for (const bookmarkId of bookmarkIds) {
+			try {
+				const result = await this.syncSingleBookmarkMetadata(bookmarkId);
+				if (result === 'skipped') {
+					skipCount++;
+				} else {
+					successCount++;
+				}
+			} catch (error) {
+				console.error(`Error syncing metadata for bookmark ${bookmarkId}:`, error);
+				errorCount++;
+			}
+		}
+
+		new Notice(`Readeck importer: Metadata sync completed. Success: ${successCount}, Skipped: ${skipCount}, Errors: ${errorCount}`);
+	}
+
+	/**
+	 * Get all bookmark IDs from the bookmarks folder
+	 */
+	getBookmarkIdsFromFolder(folder: TFolder): string[] {
+		const bookmarkIds: string[] = [];
+		
+		for (const child of folder.children) {
+			if (child instanceof TFolder) {
+				// Folder name is the bookmark ID
+				bookmarkIds.push(child.name);
+			}
+		}
+		
+		return bookmarkIds;
+	}
+
+	/**
+	 * Sync metadata for a single bookmark
+	 * @returns 'success' if synced, 'skipped' if no markdown file found
+	 */
+	async syncSingleBookmarkMetadata(bookmarkId: string): Promise<'success' | 'skipped'> {
+		// Find the markdown file in the bookmark folder
+		const bookmarkFolderPath = `${this.settings.folder}/${bookmarkId}`;
+		const bookmarkFolder = this.app.vault.getAbstractFileByPath(bookmarkFolderPath);
+		
+		if (!bookmarkFolder || !(bookmarkFolder instanceof TFolder)) {
+			throw new Error(`Bookmark folder not found: ${bookmarkFolderPath}`);
+		}
+
+		// Find the markdown file in the folder
+		let mdFile: TFile | null = null;
+		for (const child of bookmarkFolder.children) {
+			if (child instanceof TFile && child.extension === 'md') {
+				mdFile = child;
+				break;
+			}
+		}
+
+		if (!mdFile) {
+			// No markdown file found, skip this bookmark
+			return 'skipped';
+		}
+
+		// Get bookmark detail
+		const detail = await this.api.getBookmarkDetail(bookmarkId);
+		
+		// Build Frontmatter with absolute path from vault root
+		const frontmatter = Utils.buildFrontmatter(detail, this.settings.metadataFields, bookmarkFolderPath);
+
+		// Read file content
+		const content = await this.app.vault.read(mdFile);
+		
+		// Update Frontmatter
+		const updatedContent = Utils.updateFrontmatter(content, frontmatter);
+		
+		// Write to file
+		await this.app.vault.modify(mdFile, updatedContent);
+
+		return 'success';
 	}
 
 	onunload() {
