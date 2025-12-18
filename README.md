@@ -60,6 +60,8 @@ The plugin provides the following configurable options:
 - **Get readeck data**: Sync new bookmarks since last sync (incremental sync).
 - **Resync all bookmarks**: Reset sync timestamp and re-sync all bookmarks (full sync).
 - **Sync bookmark metadata**: Sync metadata to YAML frontmatter for all existing bookmarks.
+- **Mark current bookmark as read**: Mark the current bookmark as read (set read_progress to 100).
+- **Mark current bookmark as unread**: Mark the current bookmark as unread (set read_progress to 0).
 
 ## Development
 
