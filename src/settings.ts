@@ -166,6 +166,15 @@ export class RDSettingTab extends PluginSettingTab {
 		containerEl.createEl('h3', { text: 'Metadata Sync Settings' });
 
 		new Setting(containerEl)
+			.setName('Auto sync metadata after bookmark sync')
+			.setDesc('Automatically sync metadata to frontmatter after syncing bookmarks')
+			.addToggle(toggle => toggle.setValue(this.plugin.settings.autoSyncMetadata)
+				.onChange(async (value) => {
+					this.plugin.settings.autoSyncMetadata = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
 			.setName('Metadata fields')
 			.setDesc('Select which metadata fields to sync to the frontmatter of existing bookmarks');
 

@@ -171,6 +171,11 @@ export default class RDPlugin extends Plugin {
 		// Update last sync time
 		this.settings.lastSyncAt = new Date().toLocaleString();
 		await this.saveSettings()
+
+		// Auto sync metadata if enabled
+		if (this.settings.autoSyncMetadata && this.settings.metadataFields.length > 0) {
+			await this.syncBookmarkMetadata();
+		}
 	}
 
 	async getBookmarkAnnotations(bookmarkId: string) {

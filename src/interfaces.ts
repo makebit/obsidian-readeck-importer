@@ -9,6 +9,7 @@ export interface ReadeckPluginSettings {
 	delete: boolean;
 	mode: string;
 	metadataFields: string[];
+	autoSyncMetadata: boolean;
 }
 
 export interface Response<T> {
@@ -123,4 +124,5 @@ export const DEFAULT_SETTINGS: ReadeckPluginSettings = {
 	delete: false,
 	mode: "text",
 	metadataFields: ['title', 'url', 'labels', 'cover'],
+	autoSyncMetadata: false,
 }
