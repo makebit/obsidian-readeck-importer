@@ -19,7 +19,9 @@ export class ReadeckApi {
             url: `${this.settings.apiUrl}/api/bookmarks/sync?${params.toString()}`,
             method: 'GET',
             headers: {
-                'Authorization': `Bearer ${this.settings.apiToken}`
+                'Authorization': `Bearer ${this.settings.apiToken}`,
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache'
             }
         });
 
@@ -59,7 +61,9 @@ export class ReadeckApi {
             url: `${this.settings.apiUrl}/api/bookmarks/${bookmarkId}/annotations`,
             method: 'GET',
             headers: {
-                'Authorization': `Bearer ${this.settings.apiToken}`
+                'Authorization': `Bearer ${this.settings.apiToken}`,
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache'
             }
         });
         const annotations = await annotationResponse.json;
@@ -71,7 +75,9 @@ export class ReadeckApi {
             url: `${this.settings.apiUrl}/api/bookmarks/${bookmarkId}`,
             method: 'GET',
             headers: {
-                'Authorization': `Bearer ${this.settings.apiToken}`
+                'Authorization': `Bearer ${this.settings.apiToken}`,
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache'
             }
         });
         return response.json;
