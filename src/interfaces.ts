@@ -79,6 +79,13 @@ export interface BookmarkDetail {
 		props?: { src: string };
 		thumbnail?: { src: string; width: number; height: number };
 	};
+	links?: {
+		url: string;
+		domain: string;
+		title: string;
+		is_page: boolean;
+		content_type: string;
+	}[];
 	word_count: number;
 	reading_time: number;
 }
@@ -97,6 +104,10 @@ export const METADATA_FIELDS = [
 	{ key: 'reading_time', label: 'Reading Time' },
 	{ key: 'cover', label: 'Cover Image' },
 	{ key: 'read_progress', label: 'Read Progress' },
+	{ key: 'is_deleted', label: 'Is Deleted' },
+	{ key: 'is_marked', label: 'Is Marked' },
+	{ key: 'is_archived', label: 'Is Archived' },
+	{ key: 'links', label: 'Links' },
 ] as const;
 
 export type MetadataFieldKey = typeof METADATA_FIELDS[number]['key'];

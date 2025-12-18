@@ -109,7 +109,22 @@ export class Utils {
 				return detail.read_progress;
 			case 'cover':
 				// Use absolute path from vault root for cover image
-				return `${bookmarkFolderPath}/imgs/thumbnail.jpeg`;
+				// Extract file extension from thumbnail src URL
+				const thumbnailSrc = detail.resources?.thumbnail?.src;
+				if (thumbnailSrc) {
+					const ext = thumbnailSrc.split('.').pop() || 'jpeg';
+					return `${bookmarkFolderPath}/imgs/thumbnail.${ext}`;
+				}
+				return null;
+			case 'is_deleted':
+				return detail.is_deleted;
+			case 'is_marked':
+				return detail.is_marked;
+			case 'is_archived':
+				return detail.is_archived;
+			case 'links':
+				// Extract URLs from links array
+				return detail.links?.map(link => link.url) || [];
 			default:
 				return null;
 		}
