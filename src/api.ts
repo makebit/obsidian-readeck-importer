@@ -95,10 +95,22 @@ export class ReadeckApi {
                 username: username,
                 password: password,
                 application: "obsidian-readeck-importer",
-                roles: ["scoped_bookmarks_r"],
+                roles: ["scoped_bookmarks_r", "scoped_bookmarks_w"],
             }),
         });
         const token: string = await tokenResponse.json.token;
         return token;
+    }
+
+    async updateBookmark(bookmarkId: string, data: { read_progress?: number }): Promise<void> {
+        await requestUrl({
+            url: `${this.settings.apiUrl}/api/bookmarks/${bookmarkId}`,
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${this.settings.apiToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
     }
 }
