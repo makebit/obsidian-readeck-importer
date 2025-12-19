@@ -36,6 +36,24 @@ export default class RDPlugin extends Plugin {
 			},
 		  })
 
+		this.addCommand({
+			id: 'sync-bookmark-metadata',
+			name: 'Sync bookmark metadata',
+			callback: () => this.syncBookmarkMetadata(),
+		});
+
+		this.addCommand({
+			id: 'mark-as-read',
+			name: 'Mark current bookmark as read',
+			callback: () => this.markCurrentBookmarkAsRead(),
+		});
+
+		this.addCommand({
+			id: 'mark-as-unread',
+			name: 'Mark current bookmark as unread',
+			callback: () => this.markCurrentBookmarkAsUnread(),
+		});
+
 		this.api = new ReadeckApi(this.settings);
 
 		// Auto sync on startup if configured
@@ -165,6 +183,11 @@ export default class RDPlugin extends Plugin {
 		// Update last sync time
 		this.settings.lastSyncAt = new Date().toLocaleString();
 		await this.saveSettings()
+
+		// Auto sync metadata if enabled (only for updated bookmarks)
+		if (this.settings.autoSyncMetadata && this.settings.metadataFields.length > 0 && toUpdateIds.length > 0) {
+			await this.syncBookmarkMetadataForIds(toUpdateIds);
+		}
 	}
 
 	async getBookmarkAnnotations(bookmarkId: string) {
@@ -278,6 +301,241 @@ export default class RDPlugin extends Plugin {
 			if (showNotice) { new Notice(`Readeck importer: Deleting bookmark ${id}`); }
 		} else if (!folder) {
 			if (showNotice) { new Notice(`Readeck importer: Error deleting bookmark ${id}`); }
+		}
+	}
+
+	/**
+	 * Sync metadata of existing bookmarks to Frontmatter
+	 */
+	async syncBookmarkMetadata() {
+		// Check if logged in
+		if (this.settings.apiToken === "") {
+			new Notice('Readeck importer: Please login first');
+			return;
+		}
+
+		// Check if metadata fields are configured
+		if (this.settings.metadataFields.length === 0) {
+			new Notice('Readeck importer: No metadata fields configured');
+			return;
+		}
+
+		// Get bookmarks folder
+		const bookmarksFolder = this.app.vault.getAbstractFileByPath(this.settings.folder);
+		if (!bookmarksFolder || !(bookmarksFolder instanceof TFolder)) {
+			new Notice('Readeck importer: Bookmarks folder not found');
+			return;
+		}
+
+		// Scan bookmarks folder to get all bookmark IDs
+		const bookmarkIds = this.getBookmarkIdsFromFolder(bookmarksFolder);
+		if (bookmarkIds.length === 0) {
+			new Notice('Readeck importer: No bookmarks found to sync metadata');
+			return;
+		}
+
+		await this.syncBookmarkMetadataForIds(bookmarkIds);
+	}
+
+	/**
+	 * Sync metadata for specific bookmark IDs
+	 */
+	async syncBookmarkMetadataForIds(bookmarkIds: string[]) {
+		if (bookmarkIds.length === 0) {
+			return;
+		}
+
+		new Notice(`Readeck importer: Syncing metadata for ${bookmarkIds.length} bookmarks...`);
+
+		let successCount = 0;
+		let errorCount = 0;
+		let skipCount = 0;
+
+		// Sync metadata for each bookmark
+		for (const bookmarkId of bookmarkIds) {
+			try {
+				const result = await this.syncSingleBookmarkMetadata(bookmarkId);
+				if (result === 'skipped') {
+					skipCount++;
+				} else {
+					successCount++;
+				}
+			} catch (error) {
+				console.error(`Error syncing metadata for bookmark ${bookmarkId}:`, error);
+				errorCount++;
+			}
+		}
+
+		new Notice(`Readeck importer: Metadata sync completed. Success: ${successCount}, Skipped: ${skipCount}, Errors: ${errorCount}`);
+	}
+
+	/**
+	 * Get all bookmark IDs from the bookmarks folder
+	 */
+	getBookmarkIdsFromFolder(folder: TFolder): string[] {
+		const bookmarkIds: string[] = [];
+		
+		for (const child of folder.children) {
+			if (child instanceof TFolder) {
+				// Folder name is the bookmark ID
+				bookmarkIds.push(child.name);
+			}
+		}
+		
+		return bookmarkIds;
+	}
+
+	/**
+	 * Sync metadata for a single bookmark
+	 * @returns 'success' if synced, 'skipped' if no markdown file found
+	 */
+	async syncSingleBookmarkMetadata(bookmarkId: string): Promise<'success' | 'skipped'> {
+		// Find the markdown file in the bookmark folder
+		const bookmarkFolderPath = `${this.settings.folder}/${bookmarkId}`;
+		const bookmarkFolder = this.app.vault.getAbstractFileByPath(bookmarkFolderPath);
+		
+		if (!bookmarkFolder || !(bookmarkFolder instanceof TFolder)) {
+			throw new Error(`Bookmark folder not found: ${bookmarkFolderPath}`);
+		}
+
+		// Find the markdown file in the folder
+		let mdFile: TFile | null = null;
+		for (const child of bookmarkFolder.children) {
+			if (child instanceof TFile && child.extension === 'md') {
+				mdFile = child;
+				break;
+			}
+		}
+
+		if (!mdFile) {
+			// No markdown file found, skip this bookmark
+			return 'skipped';
+		}
+
+		// Get bookmark detail
+		const detail = await this.api.getBookmarkDetail(bookmarkId);
+		
+		// Build Frontmatter with absolute path from vault root
+		const frontmatter = Utils.buildFrontmatter(detail, this.settings.metadataFields, bookmarkFolderPath);
+
+		// Read file content
+		const content = await this.app.vault.read(mdFile);
+		
+		// Update Frontmatter
+		const updatedContent = Utils.updateFrontmatter(content, frontmatter);
+		
+		// Write to file
+		await this.app.vault.modify(mdFile, updatedContent);
+
+		return 'success';
+	}
+
+	/**
+	 * Get bookmark ID from the currently active file
+	 * @returns bookmark ID or null if not a valid bookmark file
+	 */
+	getBookmarkIdFromActiveFile(): string | null {
+		const activeFile = this.app.workspace.getActiveFile();
+		if (!activeFile) {
+			return null;
+		}
+
+		// Check if the file is in the bookmarks folder
+		const filePath = activeFile.path;
+		if (!filePath.startsWith(this.settings.folder + '/')) {
+			return null;
+		}
+
+		// Extract bookmark ID from path (second to last part)
+		// Path format: {folder}/{bookmarkId}/{filename}.md
+		const pathParts = filePath.split('/');
+		
+		if (pathParts.length < 2) {
+			return null;
+		}
+
+		// Bookmark ID is the second to last part (parent folder of the md file)
+		return pathParts[pathParts.length - 2];
+	}
+
+	/**
+	 * Mark the current bookmark as read (read_progress = 100)
+	 */
+	async markCurrentBookmarkAsRead() {
+		await this.updateBookmarkReadProgress(100, 'read');
+	}
+
+	/**
+	 * Mark the current bookmark as unread (read_progress = 0)
+	 */
+	async markCurrentBookmarkAsUnread() {
+		await this.updateBookmarkReadProgress(0, 'unread');
+	}
+
+	/**
+	 * Update bookmark read progress and sync to local file
+	 */
+	async updateBookmarkReadProgress(progress: number, status: 'read' | 'unread') {
+		if (this.settings.apiToken === "") {
+			new Notice('Readeck importer: Please login first');
+			return;
+		}
+
+		const bookmarkId = this.getBookmarkIdFromActiveFile();
+		if (!bookmarkId) {
+			new Notice('Readeck importer: Current file is not a bookmark');
+			return;
+		}
+
+		try {
+			// Update on Readeck server
+			await this.api.updateBookmark(bookmarkId, { read_progress: progress });
+
+			// Update local frontmatter if read_progress is in metadata fields
+			if (this.settings.metadataFields.includes('read_progress')) {
+				await this.updateLocalReadProgress(bookmarkId, progress);
+			}
+
+			new Notice(`Readeck importer: Marked as ${status}`);
+		} catch (error) {
+			console.error(`Error marking bookmark as ${status}:`, error);
+			new Notice(`Readeck importer: Failed to mark as ${status}`);
+		}
+	}
+
+	/**
+	 * Update read_progress in local file's frontmatter
+	 */
+	async updateLocalReadProgress(bookmarkId: string, progress: number) {
+		const activeFile = this.app.workspace.getActiveFile();
+		if (!activeFile) return;
+
+		const content = await this.app.vault.read(activeFile);
+		
+		// Update read_progress in frontmatter
+		const frontmatterRegex = /^---\n([\s\S]*?)\n---/;
+		const match = content.match(frontmatterRegex);
+		
+		if (match) {
+			let frontmatterContent = match[1];
+			// Check if read_progress exists
+			if (/^read_progress:\s*\d+/m.test(frontmatterContent)) {
+				// Replace existing read_progress
+				frontmatterContent = frontmatterContent.replace(
+					/^read_progress:\s*\d+/m,
+					`read_progress: ${progress}`
+				);
+			} else {
+				// Add read_progress
+				frontmatterContent += `\nread_progress: ${progress}`;
+			}
+			
+			const updatedContent = content.replace(
+				frontmatterRegex,
+				`---\n${frontmatterContent}\n---`
+			);
+			
+			await this.app.vault.modify(activeFile, updatedContent);
 		}
 	}
 

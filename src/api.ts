@@ -1,5 +1,5 @@
 import { requestUrl } from "obsidian";
-import { Annotation, Response, ReadeckPluginSettings, BookmarkStatus } from "./interfaces";
+import { Annotation, Response, ReadeckPluginSettings, BookmarkStatus, BookmarkDetail } from "./interfaces";
 
 export class ReadeckApi {
     settings: ReadeckPluginSettings;
@@ -19,7 +19,9 @@ export class ReadeckApi {
             url: `${this.settings.apiUrl}/api/bookmarks/sync?${params.toString()}`,
             method: 'GET',
             headers: {
-                'Authorization': `Bearer ${this.settings.apiToken}`
+                'Authorization': `Bearer ${this.settings.apiToken}`,
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache'
             }
         });
 
@@ -59,11 +61,26 @@ export class ReadeckApi {
             url: `${this.settings.apiUrl}/api/bookmarks/${bookmarkId}/annotations`,
             method: 'GET',
             headers: {
-                'Authorization': `Bearer ${this.settings.apiToken}`
+                'Authorization': `Bearer ${this.settings.apiToken}`,
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache'
             }
         });
         const annotations = await annotationResponse.json;
         return annotations;
+    }
+
+    async getBookmarkDetail(bookmarkId: string): Promise<BookmarkDetail> {
+        const response = await requestUrl({
+            url: `${this.settings.apiUrl}/api/bookmarks/${bookmarkId}`,
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${this.settings.apiToken}`,
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache'
+            }
+        });
+        return response.json;
     }
 
     async getToken(username: string, password: string): Promise<string> {
@@ -78,10 +95,22 @@ export class ReadeckApi {
                 username: username,
                 password: password,
                 application: "obsidian-readeck-importer",
-                roles: ["scoped_bookmarks_r"],
+                roles: ["scoped_bookmarks_r", "scoped_bookmarks_w"],
             }),
         });
         const token: string = await tokenResponse.json.token;
         return token;
+    }
+
+    async updateBookmark(bookmarkId: string, data: { read_progress?: number }): Promise<void> {
+        await requestUrl({
+            url: `${this.settings.apiUrl}/api/bookmarks/${bookmarkId}`,
+            method: 'PATCH',
+            headers: {
+                'Authorization': `Bearer ${this.settings.apiToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+        });
     }
 }
