@@ -184,9 +184,9 @@ export default class RDPlugin extends Plugin {
 		this.settings.lastSyncAt = new Date().toLocaleString();
 		await this.saveSettings()
 
-		// Auto sync metadata if enabled
-		if (this.settings.autoSyncMetadata && this.settings.metadataFields.length > 0) {
-			await this.syncBookmarkMetadata();
+		// Auto sync metadata if enabled (only for updated bookmarks)
+		if (this.settings.autoSyncMetadata && this.settings.metadataFields.length > 0 && toUpdateIds.length > 0) {
+			await this.syncBookmarkMetadataForIds(toUpdateIds);
 		}
 	}
 
@@ -331,6 +331,17 @@ export default class RDPlugin extends Plugin {
 		const bookmarkIds = this.getBookmarkIdsFromFolder(bookmarksFolder);
 		if (bookmarkIds.length === 0) {
 			new Notice('Readeck importer: No bookmarks found to sync metadata');
+			return;
+		}
+
+		await this.syncBookmarkMetadataForIds(bookmarkIds);
+	}
+
+	/**
+	 * Sync metadata for specific bookmark IDs
+	 */
+	async syncBookmarkMetadataForIds(bookmarkIds: string[]) {
+		if (bookmarkIds.length === 0) {
 			return;
 		}
 
