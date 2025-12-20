@@ -76,8 +76,17 @@ export class ReadeckApi {
             }
         });
         if (response.status !== 200) {
-            throw new Error(`Failed to get Readeck info: ${response.status}`);
+            throw new Error(`Failed to get Readeck info: ${response}`);
         }
+        
+        // backwards compatibility for older readeck versions without /info endpoint
+        try {
+            JSON.parse(response.text);
+        }
+        catch (e) {
+            return {} as InfoObject; // return empty object if no json for older readeck versions
+        }
+       
         return response.json as InfoObject;
     }
 

@@ -47,7 +47,7 @@ export class RDSettingTab extends PluginSettingTab {
 						// See if readeck instance can get reached
 						try {
 							const info = await this.plugin.api.getInfo();
-							if (info.features.includes("oauth")) {
+							if (info.features?.includes("oauth")) {
 								loginMode = "oauth";
 							} else {
 								loginMode = "password";
