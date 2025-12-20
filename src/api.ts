@@ -1,6 +1,5 @@
 import { requestUrl } from "obsidian";
-import { Annotation, Response, ReadeckPluginSettings, BookmarkStatus, oAuthClient, DeviceAuthorization, AccessToken, oAuthError, oAuthErrorEnum, oAuthClientType } from "./interfaces";
-import { randomUUID } from "crypto";
+import { Annotation, Response, ReadeckPluginSettings, BookmarkStatus, oAuthClient, DeviceAuthorization, AccessToken, oAuthError, oAuthErrorEnum, InfoObject } from "./interfaces";
 import manifest from "../manifest.json";
 
 export class ReadeckApi {
@@ -68,6 +67,20 @@ export class ReadeckApi {
         return annotations;
     }
 
+    async getInfo(): Promise<InfoObject> {
+        const response = await requestUrl({
+            url: `${this.settings.apiUrl}/api/info`,
+            method: 'GET',
+            headers: {
+                'Accept': "application/json",
+            }
+        });
+        if (response.status !== 200) {
+            throw new Error(`Failed to get Readeck info: ${response.status}`);
+        }
+        return response.json as InfoObject;
+    }
+
     async createoAuthClient(client_name: string): Promise<oAuthClient> {
         try {
             const response = await requestUrl({
@@ -80,7 +93,7 @@ export class ReadeckApi {
                 body: JSON.stringify({
                     client_name,
                     client_uri: "https://github.com/makebit/obsidian-readeck-importer",
-                    software_id: randomUUID(),
+                    software_id: 'obsidian-readeck-importer-' + manifest.version,
                     software_version: manifest.version,
                     grant_types: ["urn:ietf:params:oauth:grant-type:device_code"],
                 })
@@ -169,6 +182,25 @@ export class ReadeckApi {
             }
 
             await new Promise((resolve) => setTimeout(resolve, delay * 1000));
+        }
+    }
+
+    async revokeOAuthToken(token: string): Promise<void> {
+        try {
+            const response = await requestUrl({
+                url: `${this.settings.apiUrl}/api/oauth/revoke`,
+                method: 'POST',
+                headers: {
+                    Accept: "application/json",
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`,
+                },
+                body: JSON.stringify({
+                    token: token,
+                }),
+            });
+        } catch (e) {
+            throw new Error(`Revoking OAuth token failed: ${e.message}`);
         }
     }
 

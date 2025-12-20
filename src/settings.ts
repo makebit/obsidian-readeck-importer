@@ -18,12 +18,13 @@ export class RDSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		const loggedIn = this.plugin.settings.apiToken !== "";
+		let loginMode: "oauth" | "password" = "oauth";
 
 		new Setting(containerEl)
 			.setName('API URL')
-			.setDesc('URL of Readeck instance (without trailing "/"). E.g. https://readeck.domain.tld')
+			.setDesc('URL of Readeck instance (without trailing "/").')
 			.addText(text => text
-				.setPlaceholder('Enter your API URL')
+				.setPlaceholder('https://readeck.domain.tld')
 				.setValue(this.plugin.settings.apiUrl)
 				.onChange(async (value) => {
 					this.plugin.settings.apiUrl = value;
@@ -32,64 +33,74 @@ export class RDSettingTab extends PluginSettingTab {
 
 		let loginButton: ButtonComponent;
 		let logoutButton: ButtonComponent;
+
 		new Setting(containerEl)
 			.setName('Login')
-			.setDesc('Login via OAuth. Attempts deprecated username/password login if oAuth fails')
+			.setDesc('Login to your Readeck account')
 			.addButton((btn) => {
 				loginButton = btn;
 				btn
-					.setButtonText(loggedIn ? `Registered "${client_name}" application` : 'Login')
+					.setButtonText(loggedIn ? `Authenticated` : 'Login')
 					.setDisabled(loggedIn)
 					.setCta()
 					.onClick(async () => {
-						loginButton.setDisabled(true);
-						let cancelled = false;
+						// See if readeck instance can get reached
 						try {
-							// Attempt OAuth device flow, fallback to password login if not supported
-							// Step 1: Start oAuth device authorization
-							const oauthClient = await this.plugin.api.createoAuthClient(client_name);
-							
-							// Step 2: Show modal with user code and verification URL
-            				const deviceAuth = await this.plugin.api.authorizeDevice(oauthClient.client_id);
-							const deviceCodeModal = new DeviceCodeModal(this.app, deviceAuth, () => { cancelled = true; });
-							deviceCodeModal.open();
-
-							// Step 3: Poll for token
-							const acessTokenResp = await this.plugin.api.pollDeviceToken(oauthClient.client_id, deviceAuth.device_code, deviceAuth.interval, deviceAuth.expires_in);
-							if (cancelled) {
-								loginButton.setDisabled(false);
-								return;
+							const info = await this.plugin.api.getInfo();
+							if (info.features.includes("oauth")) {
+								loginMode = "oauth";
+							} else {
+								loginMode = "password";
+								new Notice("Readeck Importer: OAuth not supported on this Readeck instance. Consider upgrading your Readeck instance as password login will be removed soon.");
 							}
-
-							// update values
-							this.plugin.settings.apiToken = acessTokenResp.access_token;
-							await this.plugin.saveSettings();
-
-							// update ui
-							loginButton.setButtonText(`Registered "${client_name}" application`);
-							loginButton.setDisabled(true);
-							logoutButton.setDisabled(false);
-							deviceCodeModal.close();
 						} catch (err) {
-							new Notice('OAuth device flow not available or failed, attempting password login');
-							new LoginModal(this.app, (username, password) => {
-								this.plugin.api.getToken(username, password)
-									.then(async (token) => {
-										// update values
-										this.plugin.settings.apiToken = token;
-										this.plugin.settings.username = username;
-										await this.plugin.saveSettings();
-										// update ui
+							console.log("Error connecting to Readeck instance", err);
+							new Notice('Readeck Importer: error connecting to Readeck instance: ' + err.message);
+							loginButton.setDisabled(false);
+							return;
+						}
+						// Login via password if oauth not supported. TODO: Remove this in summer 2026
+						if (loginMode === "password") {
+							try {
+								new LoginModal(this.app, async (username, password) => {
+									const success = await this.plugin.auth.handleLogin(username, password);
+									if (success) {
 										loginButton.setButtonText(`Logged in as ${this.plugin.settings.username}`);
 										loginButton.setDisabled(true);
 										logoutButton.setDisabled(false);
-									}).catch((error) => {
-										console.log("Login error", error);
-										new Notice('Login error, check your credentials');
-									}).finally(() => {
-										loginButton.setDisabled(this.plugin.settings.apiToken !== "");
-									});
-							}).open();
+									}
+									loginButton.setDisabled(this.plugin.settings.apiToken !== "");
+								}).open();
+								return;
+							} catch (err) {
+								new Notice('Readeck Importer: Login error: ' + err.message);
+								loginButton.setDisabled(false);
+								return;
+							}
+						}
+						// OAuth login
+						if (loginMode !== "oauth") {
+							loginButton.setDisabled(false);
+							return;
+						}
+						try {
+							const authenticated = await this.plugin.auth.handleOAuth(
+								client_name,
+								(deviceAuth, onCancel) => {
+									const deviceCodeModal = new DeviceCodeModal(this.app, deviceAuth, onCancel);
+									deviceCodeModal.open();
+									return { close: () => deviceCodeModal.close() };
+								}
+							);
+							if (!authenticated) {
+								return;
+							}
+
+							loginButton.setButtonText(`Authenticated`);
+							loginButton.setDisabled(true);
+							logoutButton.setDisabled(false);
+						} catch (err) {
+							new Notice('Readeck Importer: OAuth login error: ' + err.message);
 						} finally {
 							if (this.plugin.settings.apiToken === "") {
 								loginButton.setDisabled(false);
@@ -105,15 +116,11 @@ export class RDSettingTab extends PluginSettingTab {
 					.setButtonText('Logout')
 					.setDisabled(!loggedIn)
 					.onClick(async () => {
-						// Do logout
-						// update values
-						this.plugin.settings.apiToken = "";
-						this.plugin.settings.username = "";
-						await this.plugin.saveSettings();
 						// update ui
 						loginButton.setButtonText('Login');
 						loginButton.setDisabled(false);
 						logoutButton.setDisabled(true);
+						await this.plugin.auth.logout();
 					})
 			});
 

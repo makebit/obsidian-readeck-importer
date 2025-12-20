@@ -11,6 +11,12 @@ export interface ReadeckPluginSettings {
 	mode: string;
 }
 
+// i.e {"version":{"canonical":"0.21.5","release":"0.21.5","build":""},"features":["oauth"]}
+export interface InfoObject {
+	features: string[];
+	version: string[];
+}
+
 export type oAuthClient = {
     client_id: string;
     client_name: string;
