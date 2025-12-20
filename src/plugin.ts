@@ -37,6 +37,18 @@ export default class RDPlugin extends Plugin {
 		  })
 
 		this.api = new ReadeckApi(this.settings);
+
+		// Auto sync on startup if configured
+		this.app.workspace.onLayoutReady(async () => {
+			if (this.settings.apiToken === "") {
+				return; // Not logged in
+
+			}
+			if (this.settings.autoSyncOnStartup === false) {
+				return;
+			}
+			await this.getReadeckData();
+		})
 	}
 
 	/*
@@ -58,13 +70,13 @@ export default class RDPlugin extends Plugin {
 			);
 			bookmarksStatus = response.items;
 		} catch (error) {
-			new Notice(`Error getting bookmarks, error ${error}`);
+			new Notice(`Readeck importer: Error getting bookmarks, error ${error}`);
 			return;
 		}
 
 		// Check if bookmarks were returned
 		if (bookmarksStatus.length <= 0) {
-			new Notice("No new bookmarks found");
+			new Notice("Readeck importer: No new bookmarks found");
 			return;
 		}
 
@@ -158,7 +170,7 @@ export default class RDPlugin extends Plugin {
 	async getBookmarkAnnotations(bookmarkId: string) {
 		const annotations = await this.api.getBookmarkAnnotations(bookmarkId);
 		if (!annotations) {
-			new Notice(`Error getting annotations for ${bookmarkId}`);
+			new Notice(`Readeck importer: Error getting annotations for ${bookmarkId}`);
 		}
 		return annotations;
 	}
@@ -234,15 +246,15 @@ export default class RDPlugin extends Plugin {
 			if (this.settings.overwrite) {
 				// the file exists and overwrite is true
 				await this.app.vault.modify(file, content);
-				if (showNotice) { new Notice(`Overwriting note for ${bookmarkTitle}`); }
+				if (showNotice) { new Notice(`Readeck importer: Overwriting note for ${bookmarkTitle}`); }
 			} else {
 				// the file exists and overwrite is false
-				if (showNotice) { new Notice(`Note for ${bookmarkTitle} already exists`); }
+				if (showNotice) { new Notice(`Readeck importer: Note for ${bookmarkTitle} already exists`); }
 			}
 		} else if (!file) {
 			// create file if not exists
 			await this.app.vault.create(filePath, content);
-			if (showNotice) { new Notice(`Creating note for ${bookmarkTitle}`); }
+			if (showNotice) { new Notice(`Readeck importer: Creating note for ${bookmarkTitle}`); }
 		}
 	}
 
@@ -250,11 +262,11 @@ export default class RDPlugin extends Plugin {
 		const folder = this.app.vault.getAbstractFileByPath(path);
 
 		if (folder && folder instanceof TFolder) {
-			if (showNotice) { new Notice(`Folder already exists in ${id}`); }
+			if (showNotice) { new Notice(`Readeck importer: Folder already exists in ${id}`); }
 		} else {
 			// create file if not exists
 			await this.app.vault.createFolder(path);
-			if (showNotice) { new Notice(`Creating folder for ${id}`); }
+			if (showNotice) { new Notice(`Readeck importer: Creating folder for ${id} for Readeck`); }
 		}
 	}
 
@@ -263,9 +275,9 @@ export default class RDPlugin extends Plugin {
 
 		if (folder && folder instanceof TFolder) {
 			await this.app.vault.delete(folder, true);
-			if (showNotice) { new Notice(`Deleting bookmark ${id}`); }
+			if (showNotice) { new Notice(`Readeck importer: Deleting bookmark ${id}`); }
 		} else if (!folder) {
-			if (showNotice) { new Notice(`Error deleting bookmark ${id}`); }
+			if (showNotice) { new Notice(`Readeck importer: Error deleting bookmark ${id}`); }
 		}
 	}
 

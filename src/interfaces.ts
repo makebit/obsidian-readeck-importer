@@ -5,6 +5,7 @@ export interface ReadeckPluginSettings {
 	username: string,
 	folder: string;
 	lastSyncAt: string;
+	autoSyncOnStartup: boolean;
 	overwrite: boolean;
 	delete: boolean;
 	mode: string;
@@ -99,6 +100,7 @@ export const DEFAULT_SETTINGS: ReadeckPluginSettings = {
 	username: "",
 	folder: "Readeck",
 	lastSyncAt: "",
+	autoSyncOnStartup: true,
 	overwrite: false,
 	delete: false,
 	mode: "text",
