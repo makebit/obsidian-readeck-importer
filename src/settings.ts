@@ -12,16 +12,19 @@ export class RDSettingTab extends PluginSettingTab {
 
 	display(): void {
 		const { containerEl } = this;
+		const client_name = "Obsidian Readeck Importer";
+
 
 		containerEl.empty();
 
 		const loggedIn = this.plugin.settings.apiToken !== "";
+		let loginMode: "oauth" | "password" = "oauth";
 
 		new Setting(containerEl)
 			.setName('API URL')
-			.setDesc('URL of Readeck instance (without trailing "/")')
+			.setDesc('URL of Readeck instance (without trailing "/").')
 			.addText(text => text
-				.setPlaceholder('Enter your API URL')
+				.setPlaceholder('https://readeck.domain.tld')
 				.setValue(this.plugin.settings.apiUrl)
 				.onChange(async (value) => {
 					this.plugin.settings.apiUrl = value;
@@ -30,35 +33,81 @@ export class RDSettingTab extends PluginSettingTab {
 
 		let loginButton: ButtonComponent;
 		let logoutButton: ButtonComponent;
+
 		new Setting(containerEl)
 			.setName('Login')
-			.setDesc('Login and get a token')
+			.setDesc('Login to your Readeck account')
 			.addButton((btn) => {
 				loginButton = btn;
 				btn
-					.setButtonText(loggedIn ? `Logged in as ${this.plugin.settings.username}` : 'Login')
+					.setButtonText(loggedIn ? `Authenticated` : 'Login')
 					.setDisabled(loggedIn)
 					.setCta()
 					.onClick(async () => {
-						// Do login
-						new LoginModal(this.app, (username, password) => {
-							this.plugin.api.getToken(username, password)
-								.then(async (token) => {
-									// update values
-									this.plugin.settings.apiToken = token;
-									this.plugin.settings.username = username;
-									await this.plugin.saveSettings();
-									// update ui
-									loginButton.setButtonText(`Logged in as ${this.plugin.settings.username}`);
-									loginButton.setDisabled(true);
-									logoutButton.setDisabled(false);
-								}).catch((error) => {
-									console.log("Login error", error);
-									new Notice('Login error, check your credentials');
-								});
-						}).open();
+						// See if readeck instance can get reached
+						try {
+							const info = await this.plugin.api.getInfo();
+							if (info.features?.includes("oauth")) {
+								loginMode = "oauth";
+							} else {
+								loginMode = "password";
+								new Notice("Readeck Importer: OAuth not supported on this Readeck instance. Consider upgrading your Readeck instance as password login will be removed soon.");
+							}
+						} catch (err) {
+							console.log("Error connecting to Readeck instance", err);
+							new Notice('Readeck Importer: error connecting to Readeck instance: ' + err.message);
+							loginButton.setDisabled(false);
+							return;
+						}
+						// Login via password if oauth not supported. TODO: Remove this in summer 2026
+						if (loginMode === "password") {
+							try {
+								new LoginModal(this.app, async (username, password) => {
+									const success = await this.plugin.auth.handleLogin(username, password);
+									if (success) {
+										loginButton.setButtonText(`Logged in as ${this.plugin.settings.username}`);
+										loginButton.setDisabled(true);
+										logoutButton.setDisabled(false);
+									}
+									loginButton.setDisabled(this.plugin.settings.apiToken !== "");
+								}).open();
+								return;
+							} catch (err) {
+								new Notice('Readeck Importer: Login error: ' + err.message);
+								loginButton.setDisabled(false);
+								return;
+							}
+						}
+						// OAuth login
+						if (loginMode !== "oauth") {
+							loginButton.setDisabled(false);
+							return;
+						}
+						try {
+							const authenticated = await this.plugin.auth.handleOAuth(
+								client_name,
+								(deviceAuth, onCancel) => {
+									const deviceCodeModal = new DeviceCodeModal(this.app, deviceAuth, onCancel);
+									deviceCodeModal.open();
+									return { close: () => deviceCodeModal.close() };
+								}
+							);
+							if (!authenticated) {
+								return;
+							}
 
+							loginButton.setButtonText(`Authenticated`);
+							loginButton.setDisabled(true);
+							logoutButton.setDisabled(false);
+						} catch (err) {
+							new Notice('Readeck Importer: OAuth login error: ' + err.message);
+						} finally {
+							if (this.plugin.settings.apiToken === "") {
+								loginButton.setDisabled(false);
+							}
+						}
 					})
+
 			}
 			)
 			.addButton((btn) => {
@@ -67,15 +116,11 @@ export class RDSettingTab extends PluginSettingTab {
 					.setButtonText('Logout')
 					.setDisabled(!loggedIn)
 					.onClick(async () => {
-						// Do logout
-						// update values
-						this.plugin.settings.apiToken = "";
-						this.plugin.settings.username = "";
-						await this.plugin.saveSettings();
 						// update ui
 						loginButton.setButtonText('Login');
 						loginButton.setDisabled(false);
 						logoutButton.setDisabled(true);
+						await this.plugin.auth.logout();
 					})
 			});
 
@@ -206,4 +251,44 @@ class LoginModal extends Modal {
 					onSubmit(username, password);
 				}));
 	}
+}
+
+class DeviceCodeModal extends Modal {
+    private onCancel: () => void;
+    private device: { user_code: string; verification_uri: string; verification_uri_complete?: string };
+
+    constructor(app: App, device: { user_code: string; verification_uri: string; verification_uri_complete?: string }, onCancel: () => void) {
+        super(app);
+        this.onCancel = onCancel;
+        this.device = device;
+
+        this.contentEl.addClass("mod-form");
+        this.modalEl.addClass("w-auto");
+        this.setTitle('Authorize Readeck');
+
+        const instructions = this.contentEl.createDiv();
+        instructions.createEl('p', { text: '1) Open the verification URL in your browser.' });
+        const link = instructions.createEl('a', { text: this.device.verification_uri, href: this.device.verification_uri });
+        link.setAttr('target', '_blank');
+
+        instructions.createEl('p', { text: '2) Enter this code to authorize:' });
+        const codeEl = instructions.createEl('div');
+        codeEl.setText(this.device.user_code);
+        codeEl.addClass('device-code');
+
+        const actions = new Setting(this.contentEl)
+            .addButton(btn => btn
+                .setButtonText('Copy Code')
+                .onClick(() => navigator.clipboard?.writeText(this.device.user_code)))
+            .addButton(btn => btn
+                .setButtonText('Open Link')
+                .setCta()
+                .onClick(() => window.open(this.device.verification_uri_complete || this.device.verification_uri, '_blank')))
+            .addButton(btn => btn
+                .setButtonText('Cancel')
+                .onClick(() => {
+                    this.onCancel();
+                    this.close();
+                }));
+    }
 }

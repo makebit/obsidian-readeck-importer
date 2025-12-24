@@ -19,7 +19,6 @@ The Readeck Importer is a plugin for Obsidian that enables users to seamlessly i
 
 The plugin provides the following configurable options:
 - **API URL**: The base URL of the Readeck instance (without a trailing `/`).  
-- **Login**: Credentials for accessing the Readeck instance.  
 - **Folder**: The folder for saving notes.  
 - **Overwrite**: If enabled, replaces an existing note with the new one. Warning: notes will be overwritten.
 - **Mode**: Defines the content to be saved:  
