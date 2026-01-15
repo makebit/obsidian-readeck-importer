@@ -1,7 +1,7 @@
 {
 	"id": "readeck-importer",
 	"name": "Readeck Importer",
-	"version": "3.0.0",
+	"version": "3.1.0",
 	"minAppVersion": "0.15.0",
 	"description": "Import bookmarks from Readeck.",
 	"author": "Makebit",

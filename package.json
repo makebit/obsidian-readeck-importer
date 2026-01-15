@@ -1,6 +1,6 @@
 {
 	"name": "readeck",
-	"version": "3.0.0",
+	"version": "3.1.0",
 	"description": "Import bookmarks from Readeck",
 	"main": "main.js",
 	"scripts": {
