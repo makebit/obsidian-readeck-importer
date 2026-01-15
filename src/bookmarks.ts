@@ -238,7 +238,7 @@ export class BookmarksService {
 			header += `authors:\n- ${bookmark.authors.join('\n- ')}\n`;
 		}
 		if (bookmark.labels && bookmark.labels.length > 0) {
-			header += `labels:\n- ${bookmark.labels.join('\n- ')}\n`;
+			header += `tags:\n- ${bookmark.labels.join('\n- ')}\n`;
 		}
 		header += `---\n`;
 		return header;
