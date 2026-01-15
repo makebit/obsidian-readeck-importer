@@ -1,5 +1,5 @@
 import { App, Notice, TFile, TFolder } from "obsidian";
-import { Annotation, BookmarkData, BookmarkStatus, ReadeckPluginSettings } from "./interfaces";
+import { Annotation, Bookmark, BookmarkData, BookmarkStatus, ReadeckPluginSettings } from "./interfaces";
 import { ReadeckApi } from "./api";
 import { Utils } from "./utils";
 import { MultipartPart } from "@mjackson/multipart-parser";
@@ -92,12 +92,11 @@ export class BookmarksService {
 			bookmarksData.set(id, { id: id, text: null, json: { title: '' }, images: [], annotations: [] });
 		}
 
-		if (get.md || get.annotations) {
-			// Fetch bookmarks data in multipart format
-			const bookmarksMPData = await this.getBookmarksData(toUpdateIds, get.md, get.res, true);
-			// Parse multipart data
-			await this.parseBookmarksMP(bookmarksData, bookmarksMPData);
-		}
+		// Fetch bookmarks data in multipart format
+		const bookmarksMPData = await this.getBookmarksData(toUpdateIds, get.md, get.res, true);
+		// Parse multipart data
+		await this.parseBookmarksMP(bookmarksData, bookmarksMPData);		
+
 		if (get.annotations) {
 			// Fetch annotations for each updated bookmark
 			for (const bookmarkId of toUpdateIds) {
@@ -108,7 +107,7 @@ export class BookmarksService {
 				}
 			}
 		}
-				
+
 		// Process each bookmark
 		for (const [id, bookmark] of bookmarksData.entries()) {
 			// Create markdown note
@@ -116,7 +115,9 @@ export class BookmarksService {
 				// Create bookmark folder
 				const bookmarkFolderPath = `${this.settings.folder}/${id}`;
 				await this.createFolderIfNotExists(id, bookmarkFolderPath);
-				this.addBookmarkMD(id, bookmark.json.title, bookmark.text, bookmark.annotations, bookmarkFolderPath);
+				const bookmarkHeader = this.generateBookmarkHeader(bookmark.json);
+				const bookmarkContent = bookmarkHeader + (bookmark.text || '');
+				this.addBookmarkMD(id, bookmark.json.title, bookmarkContent, bookmark.annotations, bookmarkFolderPath);
 			}
 
 			// Save images
@@ -167,7 +168,7 @@ export class BookmarksService {
 		let noteContent = bookmarkContent || '';
 		if (bookmarkAnnotations.length > 0) {
 			const annotations = this.buildAnnotations(bookmarkId, bookmarkAnnotations);
-			noteContent += `\n\n${annotations}`;
+			noteContent += `\n${annotations}`;
 		}
 		await this.createFile(bookmarkTitle, filePath, noteContent);
 	}
@@ -181,7 +182,8 @@ export class BookmarksService {
 			const bookmark: BookmarkData = bookmarksData.get(bookmarkId)!;
 			if (mediaType == 'text/markdown') {
 				const markdownContent = await partData.text();
-				bookmark.text = markdownContent;
+				// Remove bookmark properties if present
+				bookmark.text = markdownContent.replace(/^---[\s\S]*?---\s*/, '');
 			} else if (mediaType.includes('image')) {
 				bookmark.images.push({
 					filename: partData.filename,
@@ -189,7 +191,13 @@ export class BookmarksService {
 				});
 			} else if (mediaType.includes('json')) {
 				const jsonText = await partData.text();
-				bookmark.json = JSON.parse(jsonText);
+				// Parse JSON with date conversion
+				bookmark.json = JSON.parse(jsonText, (key, value) => {
+					if (key === 'created' || key === 'published') {
+						return new Date(value);
+					}
+					return value;
+				});
 			} else {
 				console.warn(`Unknown content type: ${partData.mediaType}`);
 			}
@@ -207,6 +215,33 @@ export class BookmarksService {
 			).join('\n\n');
 		}
 		return annotationsContent;
+	}
+
+	private generateBookmarkHeader(bookmark: Bookmark): string {
+		let header = `---\n`;
+		if (bookmark.title) {
+			header += `title: "${bookmark.title.replace(/"/g, '\\"')}"\n`;
+		}
+		if (bookmark.url) {
+			header += `url: "${bookmark.url}"\n`;
+		}
+		if (bookmark.site) {
+			header += `site: "${bookmark.site}"\n`;
+		}
+		if (bookmark.created) {
+			header += `created: "${bookmark.created.toISOString()}"\n`;
+		}
+		if (bookmark.published) {
+			header += `published: "${bookmark.published.toISOString().split('T')[0]}"\n`;
+		}
+		if (bookmark.authors && bookmark.authors.length > 0) {
+			header += `authors:\n- ${bookmark.authors.join('\n- ')}\n`;
+		}
+		if (bookmark.labels && bookmark.labels.length > 0) {
+			header += `labels:\n- ${bookmark.labels.join('\n- ')}\n`;
+		}
+		header += `---\n`;
+		return header;
 	}
 
 	private async createFile(bookmarkTitle: string, filePath: string, content: any, showNotice: boolean = true) {

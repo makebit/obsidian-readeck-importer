@@ -56,11 +56,13 @@ export class ReadeckApi {
     }
 
     async getBookmarkAnnotations(bookmarkId: string): Promise<Annotation[]> {
+        // generate random query param to avoid caching issues
         const annotationResponse = await requestUrl({
-            url: `${this.settings.apiUrl}/api/bookmarks/${bookmarkId}/annotations`,
+            url: `${this.settings.apiUrl}/api/bookmarks/${bookmarkId}/annotations?v=${Math.random()}`,
             method: 'GET',
             headers: {
-                'Authorization': `Bearer ${this.settings.apiToken}`
+                'Authorization': `Bearer ${this.settings.apiToken}`,
+                'Content-type': 'application/json',
             }
         });
         const annotations = await annotationResponse.json;

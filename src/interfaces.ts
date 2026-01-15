@@ -85,6 +85,12 @@ export interface BookmarkData {
 
 export interface Bookmark {
 	title: string,
+	url?: string,
+	site?: string,
+	created?: Date,
+	published?: Date,
+	authors?: string[],
+	labels?: string[],
 }
 
 export interface Annotation {
