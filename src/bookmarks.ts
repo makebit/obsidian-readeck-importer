@@ -51,18 +51,6 @@ export class BookmarksService {
 			return;
 		}
 
-		// Check if bookmarks were returned
-		if (bookmarksStatus.length <= 0) {
-			new Notice("Readeck importer: No new bookmarks found");
-			return;
-		}
-
-		// Ensure bookmarks folder exists
-		const bookmarksFolder = this.app.vault.getAbstractFileByPath(this.settings.folder);
-		if (!bookmarksFolder) {
-			await this.app.vault.createFolder(this.settings.folder);
-		}
-
 		// Determine what data to fetch based on mode
 		let get = {
 			md: false,
@@ -84,9 +72,64 @@ export class BookmarksService {
 		} else if (this.settings.mode == "annotations") {
 			get.annotations = true;
 		}
-		
-		// Initialize bookmarks data structure (a map of bookmark ID to its data)
-		const toUpdateIds = bookmarksStatus.filter(b => b.type === 'update').map(b => b.id);
+
+		// Extract only updated bookmark IDs (ignore deletes at this stage)
+		let toUpdateIds = bookmarksStatus.filter(b => b.type === 'update').map(b => b.id);
+
+		if (toUpdateIds.length === 0) {
+			new Notice("Readeck importer: No new bookmarks found");
+			return;
+		}
+
+		// Pre-screen IDs server-side before fetching expensive content
+		const { filterFavourites, filterArchived, filterLabels, filterCollections } = this.settings;
+		const hasCollectionFilter = filterCollections.length > 0;
+		const hasOtherFilters = filterFavourites || filterArchived || filterLabels.length > 0;
+
+		if (hasOtherFilters || hasCollectionFilter) {
+			try {
+				if (hasCollectionFilter) {
+					// The API only accepts one collection at a time — call once per
+					// collection and union the results, then intersect with other filters.
+					const idSets = await Promise.all(
+						filterCollections.map(collectionId =>
+							this.api.filterBookmarkIds(
+								toUpdateIds,
+								filterFavourites,
+								filterArchived,
+								filterLabels,
+								collectionId,
+							)
+						)
+					);
+					// Union all per-collection results, preserving original order
+					const unionSet = new Set(idSets.flat());
+					toUpdateIds = toUpdateIds.filter(id => unionSet.has(id));
+				} else {
+					toUpdateIds = await this.api.filterBookmarkIds(
+						toUpdateIds,
+						filterFavourites,
+						filterArchived,
+						filterLabels,
+					);
+				}
+			} catch (error) {
+				new Notice(`Readeck importer: Error filtering bookmarks, error ${error}`);
+				return;
+			}
+		}
+
+		if (toUpdateIds.length === 0) {
+			new Notice("Readeck importer: No bookmarks match the active filters");
+			return;
+		}
+
+		// Ensure bookmarks folder exists before writing any files
+		const bookmarksFolder = this.app.vault.getAbstractFileByPath(this.settings.folder);
+		if (!bookmarksFolder) {
+			await this.app.vault.createFolder(this.settings.folder);
+		}
+
 		const bookmarksData = new Map<string, BookmarkData>();
 		for (const id of toUpdateIds) {
 			bookmarksData.set(id, { id: id, text: null, json: { title: '' }, images: [], annotations: [] });
@@ -95,7 +138,7 @@ export class BookmarksService {
 		// Fetch bookmarks data in multipart format
 		const bookmarksMPData = await this.getBookmarksData(toUpdateIds, get.md, get.res, true);
 		// Parse multipart data
-		await this.parseBookmarksMP(bookmarksData, bookmarksMPData);		
+		await this.parseBookmarksMP(bookmarksData, bookmarksMPData);
 
 		if (get.annotations) {
 			// Fetch annotations for each updated bookmark
