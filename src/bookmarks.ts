@@ -73,46 +73,55 @@ export class BookmarksService {
 			get.annotations = true;
 		}
 
+		// Resolve filter settings up front — needed both for the early-exit
+		// message and for the pre-screening block below.
+		const { filterFavourites, filterArchived, filterLabels, filterCollections } = this.settings;
+		const hasCollectionFilter = filterCollections.length > 0;
+		const hasAnyFilter = filterFavourites || filterArchived || filterLabels.length > 0 || hasCollectionFilter;
+
 		// Extract only updated bookmark IDs (ignore deletes at this stage)
 		let toUpdateIds = bookmarksStatus.filter(b => b.type === 'update').map(b => b.id);
 
 		if (toUpdateIds.length === 0) {
-			new Notice("Readeck importer: No new bookmarks found");
+			if (hasAnyFilter && lastSyncAt) {
+				new Notice("Readeck importer: No new bookmarks since last sync. Reset 'Last Sync' in settings to re-apply filters to your full library.");
+			} else {
+				new Notice("Readeck importer: No new bookmarks found");
+			}
 			return;
 		}
 
-		// Pre-screen IDs server-side before fetching expensive content
-		const { filterFavourites, filterArchived, filterLabels, filterCollections } = this.settings;
-		const hasCollectionFilter = filterCollections.length > 0;
-		const hasOtherFilters = filterFavourites || filterArchived || filterLabels.length > 0;
-
-		if (hasOtherFilters || hasCollectionFilter) {
+		if (hasAnyFilter) {
 			try {
-				if (hasCollectionFilter) {
-					// The API only accepts one collection at a time — call once per
-					// collection and union the results, then intersect with other filters.
-					const idSets = await Promise.all(
-						filterCollections.map(collectionId =>
-							this.api.filterBookmarkIds(
-								toUpdateIds,
-								filterFavourites,
-								filterArchived,
-								filterLabels,
-								collectionId,
-							)
+				// Build status variants: one entry per active status flag.
+				// If neither flag is active, use a single no-status call
+				// so that labels/collection filters still apply.
+				const statusVariants: Array<{ isMarked: boolean; isArchived: boolean }> = [];
+				if (filterFavourites) statusVariants.push({ isMarked: true,  isArchived: false });
+				if (filterArchived)   statusVariants.push({ isMarked: false, isArchived: true });
+				if (statusVariants.length === 0) statusVariants.push({ isMarked: false, isArchived: false });
+
+				// Collection variants: one per selected collection, or undefined for no collection filter.
+				const collectionVariants: Array<string | undefined> = hasCollectionFilter
+					? filterCollections
+					: [undefined];
+
+				// Fan out all combinations in parallel, then union the results.
+				const calls = statusVariants.flatMap(status =>
+					collectionVariants.map(collectionId =>
+						this.api.filterBookmarkIds(
+							toUpdateIds,
+							status.isMarked,
+							status.isArchived,
+							filterLabels,
+							collectionId,
 						)
-					);
-					// Union all per-collection results, preserving original order
-					const unionSet = new Set(idSets.flat());
-					toUpdateIds = toUpdateIds.filter(id => unionSet.has(id));
-				} else {
-					toUpdateIds = await this.api.filterBookmarkIds(
-						toUpdateIds,
-						filterFavourites,
-						filterArchived,
-						filterLabels,
-					);
-				}
+					)
+				);
+
+				const idSets = await Promise.all(calls);
+				const unionSet = new Set(idSets.flat());
+				toUpdateIds = toUpdateIds.filter(id => unionSet.has(id));
 			} catch (error) {
 				new Notice(`Readeck importer: Error filtering bookmarks, error ${error}`);
 				return;
