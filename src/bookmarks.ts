@@ -93,31 +93,32 @@ export class BookmarksService {
 
 		if (hasAnyFilter) {
 			try {
-				// Build status variants: one entry per active status flag.
-				// If neither flag is active, use a single no-status call
-				// so that labels/collection filters still apply.
-				const statusVariants: Array<{ isMarked: boolean; isArchived: boolean }> = [];
-				if (filterFavourites) statusVariants.push({ isMarked: true,  isArchived: false });
-				if (filterArchived)   statusVariants.push({ isMarked: false, isArchived: true });
-				if (statusVariants.length === 0) statusVariants.push({ isMarked: false, isArchived: false });
+				// Status calls and collection calls must never be combined in the same
+				// API request: the Readeck API ANDs all params server-side, so
+				// ?is_archived=true&collection=X returns only archived bookmarks that
+				// are also in collection X — almost always empty.
+				//
+				// Strategy:
+				//   • One call per active status flag (no collection param)
+				//   • One call per selected collection (no status params)
+				//   • If neither, one plain call so labels-only filtering still works
+				// All results are OR-unioned.
+				const calls: Promise<string[]>[] = [];
 
-				// Collection variants: one per selected collection, or undefined for no collection filter.
-				const collectionVariants: Array<string | undefined> = hasCollectionFilter
-					? filterCollections
-					: [undefined];
-
-				// Fan out all combinations in parallel, then union the results.
-				const calls = statusVariants.flatMap(status =>
-					collectionVariants.map(collectionId =>
-						this.api.filterBookmarkIds(
-							toUpdateIds,
-							status.isMarked,
-							status.isArchived,
-							filterLabels,
-							collectionId,
-						)
-					)
-				);
+				if (filterFavourites) {
+					calls.push(this.api.filterBookmarkIds(toUpdateIds, true,  false, filterLabels));
+				}
+				if (filterArchived) {
+					calls.push(this.api.filterBookmarkIds(toUpdateIds, false, true,  filterLabels));
+				}
+				if (hasCollectionFilter) {
+					for (const collectionId of filterCollections) {
+						calls.push(this.api.filterBookmarkIds(toUpdateIds, false, false, filterLabels, collectionId));
+					}
+				}
+				if (!filterFavourites && !filterArchived && !hasCollectionFilter) {
+					calls.push(this.api.filterBookmarkIds(toUpdateIds, false, false, filterLabels));
+				}
 
 				const idSets = await Promise.all(calls);
 				const unionSet = new Set(idSets.flat());
