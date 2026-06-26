@@ -9,9 +9,6 @@ export interface ReadeckPluginSettings {
 	overwrite: boolean;
 	delete: boolean;
 	mode: string;
-	filterFavourites: boolean;
-	filterArchived: boolean;
-	filterLabels: string[];
 	filterCollections: string[];
 }
 
@@ -101,8 +98,6 @@ export interface Bookmark {
 	published?: Date,
 	authors?: string[],
 	labels?: string[],
-	is_marked?: boolean,
-	is_archived?: boolean,
 }
 
 export interface Annotation {
@@ -128,8 +123,5 @@ export const DEFAULT_SETTINGS: ReadeckPluginSettings = {
 	overwrite: false,
 	delete: false,
 	mode: "text",
-	filterFavourites: false,
-	filterArchived: false,
-	filterLabels: [],
 	filterCollections: [],
 }

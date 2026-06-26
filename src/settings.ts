@@ -1,4 +1,4 @@
-import { App, ButtonComponent, Modal, Notice, PluginSettingTab, Setting, TextAreaComponent, TextComponent, ToggleComponent } from "obsidian";
+import { App, ButtonComponent, Modal, Notice, PluginSettingTab, Setting, TextComponent, ToggleComponent } from "obsidian";
 
 import ReadeckPlugin from "./plugin";
 
@@ -206,44 +206,10 @@ export class RDSettingTab extends PluginSettingTab {
 					})
 			});
 
-		new Setting(containerEl)
-			.setName('Filter favourites')
-			.setDesc('Sync bookmarks marked as favourite in Readeck. Can be combined with other filters.')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.filterFavourites)
-				.onChange(async (value) => {
-					this.plugin.settings.filterFavourites = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('Filter archived')
-			.setDesc('Sync bookmarks that are archived in Readeck. Can be combined with other filters.')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.filterArchived)
-				.onChange(async (value) => {
-					this.plugin.settings.filterArchived = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('Filter by labels')
-			.setDesc('Sync bookmarks with at least one of these labels (comma-separated, e.g. "tech, reading"). Can be combined with other filters. Leave empty to skip this filter.')
-			.addText(text => text
-				.setPlaceholder('tech, reading, news')
-				.setValue(this.plugin.settings.filterLabels.join(', '))
-				.onChange(async (value) => {
-					this.plugin.settings.filterLabels = value
-						.split(',')
-						.map(l => l.trim())
-						.filter(l => l.length > 0);
-					await this.plugin.saveSettings();
-				}));
-
 		// Collections filter — loaded automatically on display, refreshable manually
 		const collectionsSetting = new Setting(containerEl)
 			.setName('Filter by collections')
-			.setDesc('Sync bookmarks belonging to any of the selected collections. Can be combined with other filters.');
+			.setDesc('Sync only bookmarks belonging to the selected collections. Leave all unchecked to sync everything.');
 
 		const collectionsContainer = containerEl.createDiv();
 		collectionsContainer.style.paddingLeft = '1rem';

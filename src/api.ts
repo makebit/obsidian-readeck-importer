@@ -41,22 +41,12 @@ export class ReadeckApi {
         return response.json as ReadeckCollection[];
     }
 
-    // Filter a set of bookmark IDs against the list endpoint, which supports
-    // server-side filtering by is_marked, is_archived, labels, and collection.
+    // Filter a set of bookmark IDs to those belonging to a given collection.
     // Returns only the IDs that survive the filter.
-    async filterBookmarkIds(
-        ids: string[],
-        isMarked: boolean,
-        isArchived: boolean,
-        labels: string[],
-        collection?: string,
-    ): Promise<string[]> {
+    async filterBookmarkIds(ids: string[], collection: string): Promise<string[]> {
         const params = new URLSearchParams();
         ids.forEach(id => params.append('id', id));
-        if (isMarked) params.set('is_marked', 'true');
-        if (isArchived) params.set('is_archived', 'true');
-        labels.forEach(label => params.append('labels', label));
-        if (collection) params.set('collection', collection);
+        params.set('collection', collection);
 
         const response = await requestUrl({
             url: `${this.settings.apiUrl}/api/bookmarks?${params.toString()}`,
