@@ -18,5 +18,9 @@ main.js
 # obsidian
 data.json
 
+# AI agent reference files — not part of the repo
+AGENTS.md
+readeck-api.md
+
 # Exclude macOS Finder (System Explorer) View States
 .DS_Store
