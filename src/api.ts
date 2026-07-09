@@ -1,5 +1,5 @@
 import { requestUrl } from "obsidian";
-import { Annotation, Response, ReadeckPluginSettings, BookmarkStatus, oAuthClient, DeviceAuthorization, AccessToken, oAuthError, oAuthErrorEnum, InfoObject } from "./interfaces";
+import { Annotation, Response, ReadeckPluginSettings, BookmarkStatus, oAuthClient, DeviceAuthorization, AccessToken, oAuthError, oAuthErrorEnum, InfoObject, ReadeckCollection } from "./interfaces";
 import manifest from "../manifest.json";
 
 export class ReadeckApi {
@@ -27,6 +27,38 @@ export class ReadeckApi {
         return {
 			items: await response.json
 		};
+    }
+
+    async getCollections(): Promise<ReadeckCollection[]> {
+        const response = await requestUrl({
+            url: `${this.settings.apiUrl}/api/bookmarks/collections`,
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${this.settings.apiToken}`,
+                'Accept': 'application/json',
+            },
+        });
+        return response.json as ReadeckCollection[];
+    }
+
+    // Filter a set of bookmark IDs to those belonging to a given collection.
+    // Returns only the IDs that survive the filter.
+    async filterBookmarkIds(ids: string[], collection: string): Promise<string[]> {
+        const params = new URLSearchParams();
+        ids.forEach(id => params.append('id', id));
+        params.set('collection', collection);
+
+        const response = await requestUrl({
+            url: `${this.settings.apiUrl}/api/bookmarks?${params.toString()}`,
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${this.settings.apiToken}`,
+                'Accept': 'application/json',
+            },
+        });
+
+        const items: { id: string }[] = response.json;
+        return items.map(item => item.id);
     }
 
     async getBookmarks(

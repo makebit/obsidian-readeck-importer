@@ -9,6 +9,7 @@ export interface ReadeckPluginSettings {
 	overwrite: boolean;
 	delete: boolean;
 	mode: string;
+	filterCollections: string[];
 }
 
 // i.e {"version":{"canonical":"0.21.5","release":"0.21.5","build":""},"features":["oauth"]}
@@ -69,6 +70,12 @@ export interface Response<T> {
 	items: T[];
 }
 
+export interface ReadeckCollection {
+	id: string;
+	name: string;
+	is_pinned: boolean;
+}
+
 export interface BookmarkStatus {
 	id: string,
 	time: Date,
@@ -116,4 +123,5 @@ export const DEFAULT_SETTINGS: ReadeckPluginSettings = {
 	overwrite: false,
 	delete: false,
 	mode: "text",
+	filterCollections: [],
 }

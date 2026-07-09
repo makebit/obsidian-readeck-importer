@@ -1,4 +1,4 @@
-import { App, ButtonComponent, Modal, Notice, PluginSettingTab, Setting, TextComponent } from "obsidian";
+import { App, ButtonComponent, Modal, Notice, PluginSettingTab, Setting, TextComponent, ToggleComponent } from "obsidian";
 
 import ReadeckPlugin from "./plugin";
 
@@ -205,6 +205,57 @@ export class RDSettingTab extends PluginSettingTab {
 						await this.plugin.saveData(this.plugin.settings);
 					})
 			});
+
+		// Collections filter — loaded automatically on display, refreshable manually
+		const collectionsSetting = new Setting(containerEl)
+			.setName('Filter by collections')
+			.setDesc('Sync only bookmarks belonging to the selected collections. Leave all unchecked to sync everything.');
+
+		const collectionsContainer = containerEl.createDiv();
+		collectionsContainer.style.paddingLeft = '1rem';
+		collectionsContainer.style.paddingBottom = '0.5rem';
+
+		// Render checkboxes for already-known collections (e.g. after settings reload)
+		const renderCollectionToggles = async () => {
+			collectionsContainer.empty();
+			let collections;
+			try {
+				collections = await this.plugin.api.getCollections();
+			} catch (err) {
+				collectionsContainer.createEl('p', { text: `Failed to load collections: ${err.message}`, cls: 'mod-warning' });
+				return;
+			}
+			if (collections.length === 0) {
+				collectionsContainer.createEl('p', { text: 'No collections found.' });
+				return;
+			}
+			for (const collection of collections) {
+				new Setting(collectionsContainer)
+					.setName(collection.name)
+					.addToggle((toggle: ToggleComponent) => {
+						toggle
+							.setValue(this.plugin.settings.filterCollections.includes(collection.id))
+							.onChange(async (value) => {
+								if (value) {
+									if (!this.plugin.settings.filterCollections.includes(collection.id)) {
+										this.plugin.settings.filterCollections.push(collection.id);
+									}
+								} else {
+									this.plugin.settings.filterCollections =
+										this.plugin.settings.filterCollections.filter(id => id !== collection.id);
+								}
+								await this.plugin.saveSettings();
+							});
+					});
+			}
+		};
+
+		collectionsSetting.addButton(btn => btn
+			.setButtonText('Refresh')
+			.onClick(renderCollectionToggles));
+
+		// Auto-load collections when the settings page opens
+		renderCollectionToggles();
 	}
 }
 

@@ -84,9 +84,33 @@ export class BookmarksService {
 		} else if (this.settings.mode == "annotations") {
 			get.annotations = true;
 		}
-		
-		// Initialize bookmarks data structure (a map of bookmark ID to its data)
-		const toUpdateIds = bookmarksStatus.filter(b => b.type === 'update').map(b => b.id);
+
+		const { filterCollections } = this.settings;
+		const hasCollectionFilter = filterCollections.length > 0;
+
+		// Extract only updated bookmark IDs (ignore deletes at this stage)
+		let toUpdateIds = bookmarksStatus.filter(b => b.type === 'update').map(b => b.id);
+
+		if (hasCollectionFilter) {
+			try {
+				// One API call per selected collection; results are OR-unioned.
+				const calls = filterCollections.map(id =>
+					this.api.filterBookmarkIds(toUpdateIds, id)
+				);
+				const idSets = await Promise.all(calls);
+				const unionSet = new Set(idSets.flat());
+				toUpdateIds = toUpdateIds.filter(id => unionSet.has(id));
+			} catch (error) {
+				new Notice(`Readeck importer: Error filtering bookmarks, error ${error}`);
+				return;
+			}
+		}
+
+		if (toUpdateIds.length === 0) {
+			new Notice("Readeck importer: No bookmarks match the active filters");
+			return;
+		}
+
 		const bookmarksData = new Map<string, BookmarkData>();
 		for (const id of toUpdateIds) {
 			bookmarksData.set(id, { id: id, text: null, json: { title: '' }, images: [], annotations: [] });
@@ -95,7 +119,7 @@ export class BookmarksService {
 		// Fetch bookmarks data in multipart format
 		const bookmarksMPData = await this.getBookmarksData(toUpdateIds, get.md, get.res, true);
 		// Parse multipart data
-		await this.parseBookmarksMP(bookmarksData, bookmarksMPData);		
+		await this.parseBookmarksMP(bookmarksData, bookmarksMPData);
 
 		if (get.annotations) {
 			// Fetch annotations for each updated bookmark
