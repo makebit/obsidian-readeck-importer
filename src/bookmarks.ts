@@ -51,6 +51,18 @@ export class BookmarksService {
 			return;
 		}
 
+		// Check if bookmarks were returned
+		if (bookmarksStatus.length <= 0) {
+			new Notice("Readeck importer: No new bookmarks found");
+			return;
+		}
+
+		// Ensure bookmarks folder exists
+		const bookmarksFolder = this.app.vault.getAbstractFileByPath(this.settings.folder);
+		if (!bookmarksFolder) {
+			await this.app.vault.createFolder(this.settings.folder);
+		}
+
 		// Determine what data to fetch based on mode
 		let get = {
 			md: false,
@@ -79,15 +91,6 @@ export class BookmarksService {
 		// Extract only updated bookmark IDs (ignore deletes at this stage)
 		let toUpdateIds = bookmarksStatus.filter(b => b.type === 'update').map(b => b.id);
 
-		if (toUpdateIds.length === 0) {
-			if (hasCollectionFilter && lastSyncAt) {
-				new Notice("Readeck importer: No new bookmarks since last sync. Reset 'Last Sync' in settings to re-apply filters to your full library.");
-			} else {
-				new Notice("Readeck importer: No new bookmarks found");
-			}
-			return;
-		}
-
 		if (hasCollectionFilter) {
 			try {
 				// One API call per selected collection; results are OR-unioned.
@@ -106,12 +109,6 @@ export class BookmarksService {
 		if (toUpdateIds.length === 0) {
 			new Notice("Readeck importer: No bookmarks match the active filters");
 			return;
-		}
-
-		// Ensure bookmarks folder exists before writing any files
-		const bookmarksFolder = this.app.vault.getAbstractFileByPath(this.settings.folder);
-		if (!bookmarksFolder) {
-			await this.app.vault.createFolder(this.settings.folder);
 		}
 
 		const bookmarksData = new Map<string, BookmarkData>();
