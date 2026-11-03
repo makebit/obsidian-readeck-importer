@@ -1,6 +1,7 @@
-import { App, ButtonComponent, Modal, Notice, PluginSettingTab, Setting, TextComponent, ToggleComponent } from "obsidian";
+import { App, ButtonComponent, debounce, Modal, Notice, PluginSettingTab, Setting, TextAreaComponent, TextComponent, ToggleComponent } from "obsidian";
 
 import ReadeckPlugin from "./plugin";
+import { DEFAULT_TEMPLATE, NoteTemplate } from "./template";
 
 export class RDSettingTab extends PluginSettingTab {
 	plugin: ReadeckPlugin;
@@ -205,6 +206,44 @@ export class RDSettingTab extends PluginSettingTab {
 						await this.plugin.saveData(this.plugin.settings);
 					})
 			});
+
+		// Note template — empty means the built-in default
+		let templateArea: TextAreaComponent;
+		// Validate only after a typing pause, so half-typed tags do not flash an error
+		const validateTemplateSoon = debounce((value: string) => showTemplateStatus(NoteTemplate.validate(value)), 800, true);
+		const templateSetting = new Setting(containerEl)
+			.setName('Note template')
+			.setDesc('Nunjucks template for each imported note. Variables include title, url, content, highlights, labels and frontmatter; filters include date, blockquote and yaml. See the README for the full list.')
+			.addButton(btn => btn
+				.setButtonText('Reset to default')
+				.onClick(async () => {
+					this.plugin.settings.template = '';
+					await this.plugin.saveSettings();
+					templateArea.setValue(DEFAULT_TEMPLATE);
+					showTemplateStatus(null);
+				}));
+		templateSetting.settingEl.style.borderBottom = 'none';
+
+		templateArea = new TextAreaComponent(containerEl)
+			.setValue(this.plugin.settings.template || DEFAULT_TEMPLATE)
+			.onChange(async (value) => {
+				// Store the default as empty, so future default improvements reach this user
+				this.plugin.settings.template = value === DEFAULT_TEMPLATE ? '' : value;
+				await this.plugin.saveSettings();
+				showTemplateStatus(null);
+				validateTemplateSoon(value);
+			});
+		templateArea.inputEl.rows = 14;
+		templateArea.inputEl.style.width = '100%';
+		templateArea.inputEl.style.fontFamily = 'var(--font-monospace)';
+		templateArea.inputEl.spellcheck = false;
+
+		const templateStatusEl = containerEl.createEl('p', { cls: 'mod-warning' });
+		const showTemplateStatus = (error: string | null) => {
+			templateStatusEl.setText(error ? `Template error (sync will stop until fixed): ${error}` : '');
+			templateStatusEl.style.display = error ? '' : 'none';
+		};
+		showTemplateStatus(NoteTemplate.validate(this.plugin.settings.template));
 
 		// Collections filter — loaded automatically on display, refreshable manually
 		const collectionsSetting = new Setting(containerEl)

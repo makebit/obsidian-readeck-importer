@@ -17,6 +17,8 @@ const context = await esbuild.context({
 	},
 	entryPoints: ["main.ts"],
 	bundle: true,
+	// The browser build of nunjucks has no Node loaders (fs, chokidar), so it also runs on mobile
+	alias: { nunjucks: "./node_modules/nunjucks/browser/nunjucks.js" },
 	external: [
 		"obsidian",
 		"electron",
