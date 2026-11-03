@@ -28,6 +28,8 @@ The plugin provides the following configurable options:
   - **Text + Images + Annotations**: Save text, images, and annotations.  
   - **Annotations**: Save the annotations.
 
+  In modes without images, images in the text link to their copy in Readeck, so they show while the Readeck server is reachable.
+
 ## How to Use
 
 1. Configure the plugin settings in **Settings > Readeck Importer**.
