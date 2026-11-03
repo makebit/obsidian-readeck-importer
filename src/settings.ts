@@ -1,6 +1,7 @@
-import { App, ButtonComponent, Modal, Notice, PluginSettingTab, Setting, TextComponent, ToggleComponent } from "obsidian";
+import { App, ButtonComponent, debounce, Modal, Notice, PluginSettingTab, Setting, TextAreaComponent, TextComponent, ToggleComponent } from "obsidian";
 
 import ReadeckPlugin from "./plugin";
+import { DEFAULT_TEMPLATE, FILTER_REFERENCE, NoteTemplate, TEMPLATE_REFERENCE } from "./template";
 
 export class RDSettingTab extends PluginSettingTab {
 	plugin: ReadeckPlugin;
@@ -205,6 +206,62 @@ export class RDSettingTab extends PluginSettingTab {
 						await this.plugin.saveData(this.plugin.settings);
 					})
 			});
+
+		// Note template — empty means the built-in default
+		let templateArea: TextAreaComponent;
+		// Validate only after a typing pause, so half-typed tags do not flash an error
+		const validateTemplateSoon = debounce((value: string) => showTemplateStatus(NoteTemplate.validate(value)), 800, true);
+		const templateSetting = new Setting(containerEl)
+			.setName('Note template')
+			.setDesc('Nunjucks template for each imported note. Variables include title, url, content, highlights, labels and frontmatter; filters include date, blockquote and yaml. See the README for the full list.')
+			.addButton(btn => btn
+				.setButtonText('Reset to default')
+				.onClick(async () => {
+					this.plugin.settings.template = '';
+					await this.plugin.saveSettings();
+					templateArea.setValue(DEFAULT_TEMPLATE);
+					showTemplateStatus(null);
+				}));
+		templateSetting.settingEl.style.borderBottom = 'none';
+
+		templateArea = new TextAreaComponent(containerEl)
+			.setValue(this.plugin.settings.template || DEFAULT_TEMPLATE)
+			.onChange(async (value) => {
+				// Store the default as empty, so future default improvements reach this user
+				this.plugin.settings.template = value === DEFAULT_TEMPLATE ? '' : value;
+				await this.plugin.saveSettings();
+				showTemplateStatus(null);
+				validateTemplateSoon(value);
+			});
+		templateArea.inputEl.rows = 14;
+		templateArea.inputEl.style.width = '100%';
+		templateArea.inputEl.style.fontFamily = 'var(--font-monospace)';
+		templateArea.inputEl.spellcheck = false;
+
+		const templateStatusEl = containerEl.createEl('p', { cls: 'mod-warning' });
+		const showTemplateStatus = (error: string | null) => {
+			templateStatusEl.setText(error ? `Template error (sync will stop until fixed): ${error}` : '');
+			templateStatusEl.style.display = error ? '' : 'none';
+		};
+		showTemplateStatus(NoteTemplate.validate(this.plugin.settings.template));
+
+		// Reference of variables and filters, right where the template is written
+		const reference = containerEl.createEl('details');
+		reference.style.marginBottom = '1em';
+		reference.createEl('summary', { text: 'Available variables and filters' });
+		const addRows = (heading: string, rows: { name: string; description: string }[], format: (name: string) => string) => {
+			reference.createEl('p', { text: heading }).style.marginBottom = '0.25em';
+			const list = reference.createEl('ul');
+			list.style.marginTop = '0';
+			for (const row of rows) {
+				const item = list.createEl('li');
+				item.createEl('code', { text: format(row.name) });
+				item.appendText(` ${row.description}`);
+			}
+		};
+		addRows('Variables', TEMPLATE_REFERENCE, name => `{{ ${name} }}`);
+		addRows('Filters', FILTER_REFERENCE, name => `| ${name}`);
+		reference.createEl('p', { text: 'Loops and conditions: {% for highlight in highlights %} … {% endfor %}, {% if published %} … {% endif %}. All built-in Nunjucks filters work too.' });
 
 		// Collections filter — loaded automatically on display, refreshable manually
 		const collectionsSetting = new Setting(containerEl)

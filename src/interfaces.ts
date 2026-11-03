@@ -10,6 +10,7 @@ export interface ReadeckPluginSettings {
 	delete: boolean;
 	mode: string;
 	filterCollections: string[];
+	template: string;
 }
 
 // i.e {"version":{"canonical":"0.21.5","release":"0.21.5","build":""},"features":["oauth"]}
@@ -98,6 +99,12 @@ export interface Bookmark {
 	published?: Date,
 	authors?: string[],
 	labels?: string[],
+	site_name?: string,
+	description?: string,
+	lang?: string,
+	word_count?: number,
+	reading_time?: number,
+	resources?: { [name: string]: { src: string; width?: number; height?: number } },
 }
 
 export interface Annotation {
@@ -106,6 +113,7 @@ export interface Annotation {
 	text: string,
 	created: Date,
 	color: string,
+	note?: string,
 	bookmark_id: string,
 	bookmark_href: string,
 	bookmark_url: string,
@@ -124,4 +132,5 @@ export const DEFAULT_SETTINGS: ReadeckPluginSettings = {
 	delete: false,
 	mode: "text",
 	filterCollections: [],
+	template: "",
 }

@@ -13,6 +13,7 @@
 	"license": "MIT",
 	"devDependencies": {
 		"@types/node": "^25.0.9",
+		"@types/nunjucks": "^3.2.6",
 		"@typescript-eslint/eslint-plugin": "8.53.0",
 		"@typescript-eslint/parser": "8.53.0",
 		"builtin-modules": "5.0.0",
@@ -22,6 +23,7 @@
 		"typescript": "5.9.3"
 	},
 	"dependencies": {
-		"@mjackson/multipart-parser": "^0.8.2"
+		"@mjackson/multipart-parser": "^0.8.2",
+		"nunjucks": "3.2.4"
 	}
 }

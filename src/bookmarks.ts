@@ -3,6 +3,7 @@ import { Annotation, Bookmark, BookmarkData, BookmarkStatus, ReadeckPluginSettin
 import { ReadeckApi } from "./api";
 import { Utils } from "./utils";
 import { MultipartPart } from "@mjackson/multipart-parser";
+import { NoteTemplate, buildTemplateContext, templateErrorMessage } from "./template";
 
 type BookmarksServiceDeps = {
 	app: App;
@@ -38,6 +39,15 @@ export class BookmarksService {
 	*/
 	async getReadeckData() {
 		const { lastSyncAt } = this.settings;
+
+		// Compile the note template first, so a broken template stops the sync before anything is written
+		let noteTemplate: NoteTemplate;
+		try {
+			noteTemplate = new NoteTemplate(this.settings.template);
+		} catch (error) {
+			new Notice(`Readeck importer: Note template has an error, sync stopped: ${templateErrorMessage(error)}`, 15000);
+			return;
+		}
 
 		// Get bookmark status since last sync
 		let bookmarksStatus: BookmarkStatus[] = [];
@@ -139,9 +149,20 @@ export class BookmarksService {
 				// Create bookmark folder
 				const bookmarkFolderPath = `${this.settings.folder}/${id}`;
 				await this.createFolderIfNotExists(id, bookmarkFolderPath);
-				const bookmarkHeader = this.generateBookmarkHeader(bookmark.json);
-				const bookmarkContent = bookmarkHeader + (bookmark.text || '');
-				this.addBookmarkMD(id, bookmark.json.title, bookmarkContent, bookmark.annotations, bookmarkFolderPath);
+				const context = buildTemplateContext(
+					this.settings.apiUrl, id, bookmark.json, bookmark.text,
+					bookmark.annotations, this.generateBookmarkHeader(bookmark.json),
+					this.thumbnailPath(id, bookmark),
+				);
+				let noteContent: string;
+				try {
+					noteContent = noteTemplate.render(context);
+				} catch (error) {
+					new Notice(`Readeck importer: Could not render note for ${bookmark.json.title}: ${templateErrorMessage(error)}`, 15000);
+					continue;
+				}
+				const filePath = `${bookmarkFolderPath}/${Utils.sanitizeFileName(bookmark.json.title)}.md`;
+				await this.createFile(bookmark.json.title, filePath, noteContent);
 			}
 
 			// Save images
@@ -187,16 +208,6 @@ export class BookmarksService {
 		return multipart;
 	}
 
-	private async addBookmarkMD(bookmarkId: string, bookmarkTitle: string, bookmarkContent: string | null, bookmarkAnnotations: Annotation[], bookmarkFolderPath?: string) {
-		const filePath = `${bookmarkFolderPath}/${Utils.sanitizeFileName(bookmarkTitle)}.md`;
-		let noteContent = bookmarkContent || '';
-		if (bookmarkAnnotations.length > 0) {
-			const annotations = this.buildAnnotations(bookmarkId, bookmarkAnnotations);
-			noteContent += `\n${annotations}`;
-		}
-		await this.createFile(bookmarkTitle, filePath, noteContent);
-	}
-
 	private async parseBookmarksMP(bookmarksData: Map<string, BookmarkData>, bookmarksMPData: any): Promise<boolean> {
 		const partsData: MultipartPart[] = await Utils.parseMultipart(bookmarksMPData);
 
@@ -229,16 +240,10 @@ export class BookmarksService {
 		return true;
 	}
 
-	private buildAnnotations(bookmarkId: string, bookmarkAnnotations: Annotation[]) {
-		let annotationsContent = "# Annotations\n";
-		if (bookmarkAnnotations.length > 0) {
-			annotationsContent = annotationsContent + bookmarkAnnotations.map(
-				(ann: any) =>
-					`> ${ann.text}` +
-					` - [#](${this.settings.apiUrl}/bookmarks/${bookmarkId}#annotation-${ann.id})`
-			).join('\n\n');
-		}
-		return annotationsContent;
+	/* Vault path the downloaded thumbnail is saved to, or "" when images are not downloaded */
+	private thumbnailPath(id: string, bookmark: BookmarkData): string {
+		const thumbnail = bookmark.images.find(image => /^thumbnail\./i.test(image.filename ?? ""));
+		return thumbnail ? `${this.settings.folder}/${id}/imgs/${thumbnail.filename}` : "";
 	}
 
 	private generateBookmarkHeader(bookmark: Bookmark): string {
