@@ -3,6 +3,7 @@ import { Annotation, Bookmark, BookmarkData, BookmarkStatus, ReadeckPluginSettin
 import { ReadeckApi } from "./api";
 import { Utils } from "./utils";
 import { MultipartPart } from "@mjackson/multipart-parser";
+import { linkImagesRemotely } from "./images";
 
 type BookmarksServiceDeps = {
 	app: App;
@@ -128,6 +129,15 @@ export class BookmarksService {
 				for (const annotationData of annotationsData) {
 					const bookmark: BookmarkData = bookmarksData.get(bookmarkId)!;
 					bookmark.annotations.push(annotationData);
+				}
+			}
+		}
+
+		// Without downloaded images, point image links at Readeck instead of missing local files
+		if (!get.res) {
+			for (const [id, bookmark] of bookmarksData.entries()) {
+				if (bookmark.text) {
+					bookmark.text = linkImagesRemotely(bookmark.text, this.settings.apiUrl, id, bookmark.json.resources);
 				}
 			}
 		}

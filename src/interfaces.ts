@@ -98,6 +98,7 @@ export interface Bookmark {
 	published?: Date,
 	authors?: string[],
 	labels?: string[],
+	resources?: { [name: string]: { src?: string } | undefined },
 }
 
 export interface Annotation {
