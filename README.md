@@ -45,7 +45,7 @@ Block tags on their own line leave no blank line behind (Nunjucks `trimBlocks` a
 | `word_count`, `reading_time` | Numbers (reading time in minutes) |
 | `id`, `readeck_url` | Readeck bookmark id and its link in Readeck |
 | `content` | The article as Markdown (empty in Annotations mode) |
-| `highlights` | List of highlights, each with `text`, `color`, `created`, `id`, `readeck_url` |
+| `highlights` | List of highlights, each with `text`, `note` (your own note on the highlight, empty if none), `color`, `created`, `id`, `readeck_url` |
 | `frontmatter` | The default frontmatter block, ready to use as is |
 | `now` | The import time |
 | `bookmark` | The raw bookmark data from Readeck |
@@ -81,6 +81,10 @@ tags:
 {% for highlight in highlights %}
 > [!quote] {{ highlight.created | date("YYYY-MM-DD") }} · [open in Readeck]({{ highlight.readeck_url }})
 {{ highlight.text | blockquote }}
+{% if highlight.note %}
+>
+{{ highlight.note | blockquote }}
+{% endif %}
 
 {% else %}
 _No highlights yet._

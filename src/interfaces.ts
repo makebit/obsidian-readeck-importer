@@ -112,6 +112,7 @@ export interface Annotation {
 	text: string,
 	created: Date,
 	color: string,
+	note?: string,
 	bookmark_id: string,
 	bookmark_href: string,
 	bookmark_url: string,

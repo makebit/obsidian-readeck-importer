@@ -16,6 +16,11 @@ export const DEFAULT_TEMPLATE = `{{ frontmatter }}{{ content }}
 # Annotations
 {% for highlight in highlights %}
 > {{ highlight.text }} - [#]({{ highlight.readeck_url }})
+{%- if highlight.note %}
+
+>
+{{ ("**Note:** " + highlight.note) | blockquote }}
+{%- endif %}
 {%- if not loop.last %}
 
 
@@ -26,6 +31,8 @@ export const DEFAULT_TEMPLATE = `{{ frontmatter }}{{ content }}
 export interface HighlightContext {
 	id: string;
 	text: string;
+	/* the user's own note on this highlight, empty when there is none */
+	note: string;
 	color: string;
 	created: Date | string;
 	readeck_url: string;
@@ -139,6 +146,7 @@ export function buildTemplateContext(
 		highlights: annotations.map(annotation => ({
 			id: annotation.id,
 			text: annotation.text,
+			note: annotation.note ?? "",
 			color: annotation.color,
 			created: annotation.created,
 			readeck_url: `${readeckUrl}#annotation-${annotation.id}`,
