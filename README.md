@@ -20,6 +20,7 @@ The Readeck Importer is a plugin for Obsidian that enables users to seamlessly i
 The plugin provides the following configurable options:
 - **API URL**: The base URL of the Readeck instance (without a trailing `/`).  
 - **Folder**: The folder for saving notes.  
+- **Note layout**: *Folder per bookmark* (default) puts each note in its own folder named after the Readeck id. *Flat* puts all notes directly in the folder, named after the title (`Title (2).md` if two bookmarks share a title), and images in `attachments/<id>/`. Flat notes get `readeck_id` in their frontmatter and are found by it, so you can rename or move them and they still update. Switching layouts does not move existing notes.
 - **Overwrite**: If enabled, replaces an existing note with the new one. Warning: notes will be overwritten.
 - **Mode**: Defines the content to be saved:  
   - **Text**: Save the text.  
