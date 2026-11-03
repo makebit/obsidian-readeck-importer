@@ -152,6 +152,7 @@ export class BookmarksService {
 				const context = buildTemplateContext(
 					this.settings.apiUrl, id, bookmark.json, bookmark.text,
 					bookmark.annotations, this.generateBookmarkHeader(bookmark.json),
+					this.thumbnailPath(id, bookmark),
 				);
 				let noteContent: string;
 				try {
@@ -237,6 +238,12 @@ export class BookmarksService {
 			}
 		}
 		return true;
+	}
+
+	/* Vault path the downloaded thumbnail is saved to, or "" when images are not downloaded */
+	private thumbnailPath(id: string, bookmark: BookmarkData): string {
+		const thumbnail = bookmark.images.find(image => /^thumbnail\./i.test(image.filename ?? ""));
+		return thumbnail ? `${this.settings.folder}/${id}/imgs/${thumbnail.filename}` : "";
 	}
 
 	private generateBookmarkHeader(bookmark: Bookmark): string {

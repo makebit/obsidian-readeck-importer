@@ -47,6 +47,8 @@ export const TEMPLATE_REFERENCE: { name: string; description: string }[] = [
 	{ name: "reading_time", description: "Reading time in minutes" },
 	{ name: "id", description: "Readeck bookmark id" },
 	{ name: "readeck_url", description: "Link to the bookmark in Readeck" },
+	{ name: "thumbnail", description: "URL of the article's thumbnail image in Readeck" },
+	{ name: "thumbnail_path", description: "Vault path of the downloaded thumbnail, e.g. for cover: \"[[{{ thumbnail_path }}]]\"; empty in modes without images" },
 	{ name: "content", description: "The article as Markdown" },
 	{ name: "highlights", description: "List of highlights; each has text, note, color, created, id, readeck_url" },
 	{ name: "frontmatter", description: "The default frontmatter block" },
@@ -85,6 +87,8 @@ export interface TemplateContext {
 	created: Date | string | null;
 	published: Date | string | null;
 	readeck_url: string;
+	thumbnail: string;
+	thumbnail_path: string;
 	now: Date;
 	content: string;
 	frontmatter: string;
@@ -155,6 +159,7 @@ export function buildTemplateContext(
 	content: string | null,
 	annotations: Annotation[],
 	frontmatter: string,
+	thumbnailPath = "",
 ): TemplateContext {
 	const readeckUrl = `${apiUrl}/bookmarks/${bookmarkId}`;
 	return {
@@ -172,6 +177,8 @@ export function buildTemplateContext(
 		created: bookmark.created ?? null,
 		published: bookmark.published ?? null,
 		readeck_url: readeckUrl,
+		thumbnail: bookmark.resources?.thumbnail?.src ?? "",
+		thumbnail_path: thumbnailPath,
 		now: new Date(),
 		content: content ?? "",
 		frontmatter,

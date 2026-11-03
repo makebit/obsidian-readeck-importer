@@ -104,6 +104,7 @@ export interface Bookmark {
 	lang?: string,
 	word_count?: number,
 	reading_time?: number,
+	resources?: { [name: string]: { src: string; width?: number; height?: number } },
 }
 
 export interface Annotation {

@@ -55,6 +55,8 @@ Example values are from a real Readeck bookmark.
 | `reading_time` | number, minutes | `3` |
 | `id` | text, Readeck bookmark id | `8fV5nHaQwi3pG7RRcZciNx` |
 | `readeck_url` | text, the bookmark in Readeck | `https://readeck.example/bookmarks/8fV5nHaQwi3pG7RRcZciNx` |
+| `thumbnail` | text, URL of the thumbnail image in Readeck | `https://readeck.example/bm/8f/8fV5nHaQwi3pG7RRcZciNx/img/thumbnail.png` |
+| `thumbnail_path` | text, vault path of the downloaded thumbnail; empty in modes without images | `Readeck/8fV5nHaQwi3pG7RRcZciNx/imgs/thumbnail.png`, e.g. `cover: "[[{{ thumbnail_path }}]]"` |
 | `content` | text, the article as Markdown | empty in Annotations mode |
 | `highlights` | list, see below | loop with `{% for highlight in highlights %}` |
 | `frontmatter` | text, the default frontmatter block | `---\ntitle: "…"\n…\n---` |
