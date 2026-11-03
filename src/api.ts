@@ -87,6 +87,18 @@ export class ReadeckApi {
         return articleResponse;
     }
 
+    /* Article HTML; unlike the sync export it carries each highlight's id and color. */
+    async getBookmarkArticleHtml(bookmarkId: string): Promise<string> {
+        const response = await requestUrl({
+            url: `${this.settings.apiUrl}/api/bookmarks/${bookmarkId}/article`,
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${this.settings.apiToken}`,
+            },
+        });
+        return response.text;
+    }
+
     async getBookmarkAnnotations(bookmarkId: string): Promise<Annotation[]> {
         // generate random query param to avoid caching issues
         const annotationResponse = await requestUrl({
