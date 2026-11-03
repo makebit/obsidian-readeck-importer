@@ -28,6 +28,38 @@ export const DEFAULT_TEMPLATE = `{{ frontmatter }}{{ content }}
 {% endfor %}
 {% endif %}`;
 
+/*
+* What a template can use, shown under the template field in the settings.
+* A test checks that every context field is listed here and in the README.
+*/
+export const TEMPLATE_REFERENCE: { name: string; description: string }[] = [
+	{ name: "title", description: "Bookmark title" },
+	{ name: "url", description: "Original article URL" },
+	{ name: "site", description: "Host name, e.g. nesslabs.com" },
+	{ name: "site_name", description: "Site name, e.g. Ness Labs" },
+	{ name: "description", description: "Short description" },
+	{ name: "lang", description: "Language code, e.g. en" },
+	{ name: "authors", description: "List of authors" },
+	{ name: "labels", description: "List of Readeck labels" },
+	{ name: "created", description: "Date saved in Readeck (use the date filter)" },
+	{ name: "published", description: "Publication date, may be empty" },
+	{ name: "word_count", description: "Number of words" },
+	{ name: "reading_time", description: "Reading time in minutes" },
+	{ name: "id", description: "Readeck bookmark id" },
+	{ name: "readeck_url", description: "Link to the bookmark in Readeck" },
+	{ name: "content", description: "The article as Markdown" },
+	{ name: "highlights", description: "List of highlights; each has text, note, color, created, id, readeck_url" },
+	{ name: "frontmatter", description: "The default frontmatter block" },
+	{ name: "now", description: "Time of the import" },
+	{ name: "bookmark", description: "Everything Readeck sends, e.g. bookmark.note, bookmark.resources.image.src, bookmark.read_progress" },
+];
+
+export const FILTER_REFERENCE: { name: string; description: string }[] = [
+	{ name: "date(\"YYYY-MM-DD\")", description: "Format a date (moment.js tokens)" },
+	{ name: "blockquote", description: "Prefix every line with \"> \"" },
+	{ name: "yaml", description: "Quote text safely for frontmatter" },
+];
+
 export interface HighlightContext {
 	id: string;
 	text: string;

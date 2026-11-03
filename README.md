@@ -37,18 +37,52 @@ Block tags on their own line leave no blank line behind (Nunjucks `trimBlocks` a
 
 ### Variables
 
-| Variable | Description |
+Example values are from a real Readeck bookmark.
+
+| Variable | Type | Example |
+|---|---|---|
+| `title` | text | `Interstitial journaling: combining notes, to-do and time tracking` |
+| `url` | text | `https://nesslabs.com/interstitial-journaling` |
+| `site` | text | `nesslabs.com` |
+| `site_name` | text | `Ness Labs` |
+| `description` | text | `Your mind at work` |
+| `lang` | text | `en` |
+| `authors` | list of text | `["Anne-Laure Le Cunff"]` |
+| `labels` | list of text | `["fire", "review"]` |
+| `created` | date, saved in Readeck | use `{{ created \| date("YYYY-MM-DD") }}` → `2025-12-17` |
+| `published` | date, may be empty | `{{ published \| date("YYYY-MM-DD") }}` → `2020-04-15` |
+| `word_count` | number | `673` |
+| `reading_time` | number, minutes | `3` |
+| `id` | text, Readeck bookmark id | `8fV5nHaQwi3pG7RRcZciNx` |
+| `readeck_url` | text, the bookmark in Readeck | `https://readeck.example/bookmarks/8fV5nHaQwi3pG7RRcZciNx` |
+| `content` | text, the article as Markdown | empty in Annotations mode |
+| `highlights` | list, see below | loop with `{% for highlight in highlights %}` |
+| `frontmatter` | text, the default frontmatter block | `---\ntitle: "…"\n…\n---` |
+| `now` | date, time of the import | `{{ now \| date("YYYY-MM-DD") }}` |
+| `bookmark` | object, everything Readeck sends, see below | `{{ bookmark.read_progress }}` |
+
+**Each highlight** in `highlights`:
+
+| Field | Type | Example |
+|---|---|---|
+| `text` | text, the highlighted passage | `Track time. Type /time to insert the current time…` |
+| `note` | text, your own note on the highlight | empty if none |
+| `color` | text | `yellow`, `red`, `blue` or `green` |
+| `created` | date | `{{ highlight.created \| date("YYYY-MM-DD") }}` → `2026-01-28` |
+| `id` | text | `dAUNBCc7T7A1ALnfSSxv1` |
+| `readeck_url` | text, the highlight in Readeck | `https://readeck.example/bookmarks/8fV5…#annotation-dAUN…` |
+
+**Useful fields of `bookmark`** beyond the variables above (anything Readeck adds later appears here too):
+
+| Field | Example |
 |---|---|
-| `title`, `url`, `site`, `site_name`, `description`, `lang` | Bookmark metadata (strings) |
-| `authors`, `labels` | Lists of strings |
-| `created`, `published` | Dates (format with the `date` filter) |
-| `word_count`, `reading_time` | Numbers (reading time in minutes) |
-| `id`, `readeck_url` | Readeck bookmark id and its link in Readeck |
-| `content` | The article as Markdown (empty in Annotations mode) |
-| `highlights` | List of highlights, each with `text`, `note` (your own note on the highlight, empty if none), `color`, `created`, `id`, `readeck_url` |
-| `frontmatter` | The default frontmatter block, ready to use as is |
-| `now` | The import time |
-| `bookmark` | The raw bookmark data from Readeck |
+| `bookmark.note` | your note on the whole bookmark |
+| `bookmark.resources.image.src` | the article's cover image URL, e.g. for `cover: {{ bookmark.resources.image.src }}` |
+| `bookmark.is_marked`, `bookmark.is_archived` | `true` / `false` (favourite, archived) |
+| `bookmark.read_progress` | `100` (percent) |
+| `bookmark.updated` | date of the last change in Readeck |
+| `bookmark.type`, `bookmark.document_type` | `article`, `photo` or `video` |
+| `bookmark.links` | list of links in the article, each with `url`, `domain`, `title` |
 
 ### Filters
 

@@ -1,7 +1,7 @@
 import { App, ButtonComponent, debounce, Modal, Notice, PluginSettingTab, Setting, TextAreaComponent, TextComponent, ToggleComponent } from "obsidian";
 
 import ReadeckPlugin from "./plugin";
-import { DEFAULT_TEMPLATE, NoteTemplate } from "./template";
+import { DEFAULT_TEMPLATE, FILTER_REFERENCE, NoteTemplate, TEMPLATE_REFERENCE } from "./template";
 
 export class RDSettingTab extends PluginSettingTab {
 	plugin: ReadeckPlugin;
@@ -244,6 +244,24 @@ export class RDSettingTab extends PluginSettingTab {
 			templateStatusEl.style.display = error ? '' : 'none';
 		};
 		showTemplateStatus(NoteTemplate.validate(this.plugin.settings.template));
+
+		// Reference of variables and filters, right where the template is written
+		const reference = containerEl.createEl('details');
+		reference.style.marginBottom = '1em';
+		reference.createEl('summary', { text: 'Available variables and filters' });
+		const addRows = (heading: string, rows: { name: string; description: string }[], format: (name: string) => string) => {
+			reference.createEl('p', { text: heading }).style.marginBottom = '0.25em';
+			const list = reference.createEl('ul');
+			list.style.marginTop = '0';
+			for (const row of rows) {
+				const item = list.createEl('li');
+				item.createEl('code', { text: format(row.name) });
+				item.appendText(` ${row.description}`);
+			}
+		};
+		addRows('Variables', TEMPLATE_REFERENCE, name => `{{ ${name} }}`);
+		addRows('Filters', FILTER_REFERENCE, name => `| ${name}`);
+		reference.createEl('p', { text: 'Loops and conditions: {% for highlight in highlights %} … {% endfor %}, {% if published %} … {% endif %}. All built-in Nunjucks filters work too.' });
 
 		// Collections filter — loaded automatically on display, refreshable manually
 		const collectionsSetting = new Setting(containerEl)
