@@ -206,6 +206,15 @@ export class RDSettingTab extends PluginSettingTab {
 					})
 			});
 
+		new Setting(containerEl)
+			.setName('Colored highlights')
+			.setDesc('Color highlights in the note with their Readeck color (needs Obsidian 1.14 or newer). Fetches the article once more for each bookmark that has highlights.')
+			.addToggle(toggle => toggle.setValue(this.plugin.settings.colorHighlights)
+				.onChange(async (value) => {
+					this.plugin.settings.colorHighlights = value;
+					await this.plugin.saveSettings();
+				}));
+
 		// Collections filter — loaded automatically on display, refreshable manually
 		const collectionsSetting = new Setting(containerEl)
 			.setName('Filter by collections')

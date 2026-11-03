@@ -3,6 +3,7 @@ import { Annotation, Bookmark, BookmarkData, BookmarkStatus, ReadeckPluginSettin
 import { ReadeckApi } from "./api";
 import { Utils } from "./utils";
 import { MultipartPart } from "@mjackson/multipart-parser";
+import { colorHighlightText, colorizeHighlights } from "./highlights";
 
 type BookmarksServiceDeps = {
 	app: App;
@@ -132,6 +133,11 @@ export class BookmarksService {
 			}
 		}
 
+		// Color the highlights inside the article text with their Readeck colors
+		if (this.settings.colorHighlights) {
+			await this.colorArticleHighlights(bookmarksData);
+		}
+
 		// Process each bookmark
 		for (const [id, bookmark] of bookmarksData.entries()) {
 			// Create markdown note
@@ -167,6 +173,34 @@ export class BookmarksService {
 		// Update last sync time
 		this.settings.lastSyncAt = new Date().toLocaleString();
 		await this.saveSettings();
+	}
+
+	/*
+	* Readeck's Markdown marks highlights as "==text==" without a color; the article
+	* HTML has the colors. A bookmark whose highlights cannot be paired safely keeps
+	* its uncolored text, and one notice lists how many were left uncolored.
+	*/
+	private async colorArticleHighlights(bookmarksData: Map<string, BookmarkData>) {
+		let uncolored = 0;
+		for (const [id, bookmark] of bookmarksData.entries()) {
+			if (!bookmark.text || !bookmark.text.includes("==")) continue;
+			try {
+				const html = await this.api.getBookmarkArticleHtml(id);
+				const colored = colorizeHighlights(bookmark.text, html);
+				if (colored === null) {
+					console.warn(`Readeck importer: highlights of ${id} could not be matched to their colors, left uncolored`);
+					uncolored++;
+				} else {
+					bookmark.text = colored;
+				}
+			} catch (error) {
+				console.warn(`Readeck importer: could not fetch article of ${id} for highlight colors`, error);
+				uncolored++;
+			}
+		}
+		if (uncolored > 0) {
+			new Notice(`Readeck importer: highlights of ${uncolored} bookmark(s) were left uncolored, see the developer console`);
+		}
 	}
 
 	private async getBookmarkAnnotations(bookmarkId: string) {
@@ -234,7 +268,7 @@ export class BookmarksService {
 		if (bookmarkAnnotations.length > 0) {
 			annotationsContent = annotationsContent + bookmarkAnnotations.map(
 				(ann: any) =>
-					`> ${ann.text}` +
+					`> ${this.settings.colorHighlights ? colorHighlightText(ann.text, ann.color) : ann.text}` +
 					` - [#](${this.settings.apiUrl}/bookmarks/${bookmarkId}#annotation-${ann.id})`
 			).join('\n\n');
 		}

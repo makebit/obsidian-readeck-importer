@@ -27,6 +27,7 @@ The plugin provides the following configurable options:
   - **Text + Annotations**: Save text and annotations.  
   - **Text + Images + Annotations**: Save text, images, and annotations.  
   - **Annotations**: Save the annotations.
+- **Colored highlights**: Colors each highlight with its Readeck color, both in the article text and in the annotations list, using Obsidian's highlight colors (`==🔴text==`, Obsidian 1.14 or newer). It also moves stray spaces out of highlight markers, which Readeck leaves around links and which otherwise break the highlight. Fetches the article once more for each bookmark that has highlights; if the highlights cannot be matched to their colors, that note is imported uncolored.
 
 ## How to Use
 
