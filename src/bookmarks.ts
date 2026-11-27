@@ -4,6 +4,7 @@ import { ReadeckApi } from "./api";
 import { Utils } from "./utils";
 import { MultipartPart } from "@mjackson/multipart-parser";
 import { attachmentsFolder, relinkImagesToAttachments, uniqueNotePath, withReadeckId } from "./layout";
+import { linkImagesRemotely } from "./images";
 
 type BookmarksServiceDeps = {
 	app: App;
@@ -138,6 +139,11 @@ export class BookmarksService {
 
 		// Process each bookmark
 		for (const [id, bookmark] of bookmarksData.entries()) {
+			// Without downloaded images, point image links at Readeck instead of missing local files
+			if (!get.res && bookmark.text) {
+				bookmark.text = linkImagesRemotely(bookmark.text, this.settings.apiUrl, id, bookmark.json.resources);
+			}
+
 			// Flat layout: one note per bookmark directly in the folder
 			if (flat && (bookmark.text || bookmark.annotations.length > 0)) {
 				const text = relinkImagesToAttachments(bookmark.text || '', this.settings.folder, id);
