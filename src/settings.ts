@@ -188,6 +188,17 @@ export class RDSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
+			.setName('Note layout')
+			.setDesc('Folder per bookmark: each note in its own folder named after the Readeck id. Flat: all notes directly in the folder, images in attachments/<id>; notes are found again by readeck_id in their frontmatter, so they can be renamed or moved. Existing notes are not moved when you switch.')
+			.addDropdown(dropdown => dropdown
+				.addOptions({ folder: 'Folder per bookmark', flat: 'Flat' })
+				.setValue(this.plugin.settings.layout)
+				.onChange(async (value) => {
+					this.plugin.settings.layout = value as "folder" | "flat";
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
 			.setName('Set mode')
 			.setDesc('Set how the note is created')
 			.addDropdown((dropdown) => {

@@ -3,6 +3,7 @@ import { Annotation, Bookmark, BookmarkData, BookmarkStatus, ReadeckPluginSettin
 import { ReadeckApi } from "./api";
 import { Utils } from "./utils";
 import { MultipartPart } from "@mjackson/multipart-parser";
+import { attachmentsFolder, relinkImagesToAttachments, uniqueNotePath, withReadeckId } from "./layout";
 
 type BookmarksServiceDeps = {
 	app: App;
@@ -132,10 +133,20 @@ export class BookmarksService {
 			}
 		}
 
+		const flat = this.settings.layout === "flat";
+		const notesById = flat ? this.notesByReadeckId() : new Map<string, TFile>();
+
 		// Process each bookmark
 		for (const [id, bookmark] of bookmarksData.entries()) {
-			// Create markdown note
-			if (bookmark.text || bookmark.annotations.length > 0) {
+			// Flat layout: one note per bookmark directly in the folder
+			if (flat && (bookmark.text || bookmark.annotations.length > 0)) {
+				const text = relinkImagesToAttachments(bookmark.text || '', this.settings.folder, id);
+				let noteContent = this.generateBookmarkHeader(bookmark.json) + text;
+				if (bookmark.annotations.length > 0) {
+					noteContent += `\n${this.buildAnnotations(id, bookmark.annotations)}`;
+				}
+				await this.writeFlatNote(id, bookmark.json.title, withReadeckId(noteContent, id), notesById);
+			} else if (bookmark.text || bookmark.annotations.length > 0) {
 				// Create bookmark folder
 				const bookmarkFolderPath = `${this.settings.folder}/${id}`;
 				await this.createFolderIfNotExists(id, bookmarkFolderPath);
@@ -146,7 +157,7 @@ export class BookmarksService {
 
 			// Save images
 			if (bookmark.images.length > 0 && bookmark.json) {
-				const bookmarkImgsFolderPath = `${this.settings.folder}/${id}/imgs`;
+				const bookmarkImgsFolderPath = attachmentsFolder(this.settings.folder, id, this.settings.layout);
 				await this.createFolderIfNotExists(id, bookmarkImgsFolderPath);
 				for (const image of bookmark.images) {
 					const filePath = `${bookmarkImgsFolderPath}/${image.filename}`;
@@ -159,14 +170,48 @@ export class BookmarksService {
 		if (this.settings.delete) {
 			const toDeleteIds = bookmarksStatus.filter(b => b.type === 'delete').map(b => b.id);
 			for (const id of toDeleteIds) {
-				const bookmarkFolderPath = `${this.settings.folder}/${id}`;
-				await this.deleteFolder(id, bookmarkFolderPath, true);
+				if (flat) {
+					const note = notesById.get(id);
+					if (note) await this.app.vault.delete(note);
+					await this.deleteFolder(id, attachmentsFolder(this.settings.folder, id, "flat"), true);
+				} else {
+					const bookmarkFolderPath = `${this.settings.folder}/${id}`;
+					await this.deleteFolder(id, bookmarkFolderPath, true);
+				}
 			}
 		}
 		
 		// Update last sync time
 		this.settings.lastSyncAt = new Date().toLocaleString();
 		await this.saveSettings();
+	}
+
+	/* Every note in the vault whose frontmatter has readeck_id, wherever it was moved to */
+	private notesByReadeckId(): Map<string, TFile> {
+		const notes = new Map<string, TFile>();
+		for (const file of this.app.vault.getMarkdownFiles()) {
+			const id = this.app.metadataCache.getFileCache(file)?.frontmatter?.readeck_id;
+			if (typeof id === "string" && id !== "") notes.set(id, file);
+		}
+		return notes;
+	}
+
+	private async writeFlatNote(id: string, title: string, content: string, notesById: Map<string, TFile>) {
+		const existing = notesById.get(id);
+		if (existing) {
+			if (this.settings.overwrite) {
+				await this.app.vault.modify(existing, content);
+				new Notice(`Readeck importer: Overwriting note for ${title}`);
+			} else {
+				new Notice(`Readeck importer: Note for ${title} already exists`);
+			}
+			return;
+		}
+		const path = uniqueNotePath(this.settings.folder, Utils.sanitizeFileName(title),
+			candidate => this.app.vault.getAbstractFileByPath(candidate) !== null);
+		const file = await this.app.vault.create(path, content);
+		notesById.set(id, file);
+		new Notice(`Readeck importer: Creating note for ${title}`);
 	}
 
 	private async getBookmarkAnnotations(bookmarkId: string) {
@@ -293,7 +338,11 @@ export class BookmarksService {
 		if (folder && folder instanceof TFolder) {
 			if (showNotice) { new Notice(`Readeck importer: Folder already exists in ${id}`); }
 		} else {
-			// create file if not exists
+			// create the folder, and any missing parent folders first
+			const parent = path.split('/').slice(0, -1).join('/');
+			if (parent && !this.app.vault.getAbstractFileByPath(parent)) {
+				await this.createFolderIfNotExists(id, parent);
+			}
 			await this.app.vault.createFolder(path);
 			if (showNotice) { new Notice(`Readeck importer: Creating folder for ${id} for Readeck`); }
 		}
