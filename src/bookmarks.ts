@@ -137,17 +137,13 @@ export class BookmarksService {
 		const flat = this.settings.layout === "flat";
 		const notesById = flat ? this.notesByReadeckId() : new Map<string, TFile>();
 
-		// Without downloaded images, point image links at Readeck instead of missing local files
-		if (!get.res) {
-			for (const [id, bookmark] of bookmarksData.entries()) {
-				if (bookmark.text) {
-					bookmark.text = linkImagesRemotely(bookmark.text, this.settings.apiUrl, id, bookmark.json.resources);
-				}
-			}
-		}
-
 		// Process each bookmark
 		for (const [id, bookmark] of bookmarksData.entries()) {
+			// Without downloaded images, point image links at Readeck instead of missing local files
+			if (!get.res && bookmark.text) {
+				bookmark.text = linkImagesRemotely(bookmark.text, this.settings.apiUrl, id, bookmark.json.resources);
+			}
+
 			// Flat layout: one note per bookmark directly in the folder
 			if (flat && (bookmark.text || bookmark.annotations.length > 0)) {
 				const text = relinkImagesToAttachments(bookmark.text || '', this.settings.folder, id);
