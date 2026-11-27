@@ -10,6 +10,7 @@ export interface ReadeckPluginSettings {
 	delete: boolean;
 	mode: string;
 	filterCollections: string[];
+	layout: "folder" | "flat";
 }
 
 // i.e {"version":{"canonical":"0.21.5","release":"0.21.5","build":""},"features":["oauth"]}
@@ -125,4 +126,5 @@ export const DEFAULT_SETTINGS: ReadeckPluginSettings = {
 	delete: false,
 	mode: "text",
 	filterCollections: [],
+	layout: "folder",
 }
